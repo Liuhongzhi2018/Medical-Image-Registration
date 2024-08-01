@@ -1,0 +1,302 @@
+[
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient147/patient147_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient147/patient147_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient147/patient147_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient147/patient147_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient142/patient142_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient142/patient142_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient142/patient142_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient142/patient142_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient111/patient111_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient111/patient111_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient111/patient111_frame07.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient111/patient111_frame07_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient124/patient124_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient124/patient124_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient124/patient124_frame07.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient124/patient124_frame07_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient120/patient120_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient120/patient120_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient120/patient120_frame08.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient120/patient120_frame08_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient126/patient126_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient126/patient126_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient126/patient126_frame07.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient126/patient126_frame07_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient108/patient108_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient108/patient108_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient108/patient108_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient108/patient108_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient144/patient144_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient144/patient144_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient144/patient144_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient144/patient144_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient109/patient109_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient109/patient109_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient109/patient109_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient109/patient109_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient143/patient143_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient143/patient143_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient143/patient143_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient143/patient143_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient107/patient107_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient107/patient107_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient107/patient107_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient107/patient107_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient149/patient149_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient149/patient149_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient149/patient149_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient149/patient149_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient105/patient105_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient105/patient105_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient105/patient105_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient105/patient105_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient129/patient129_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient129/patient129_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient129/patient129_frame08.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient129/patient129_frame08_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient138/patient138_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient138/patient138_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient138/patient138_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient138/patient138_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient134/patient134_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient134/patient134_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient134/patient134_frame15.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient134/patient134_frame15_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient104/patient104_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient104/patient104_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient104/patient104_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient104/patient104_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient137/patient137_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient137/patient137_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient137/patient137_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient137/patient137_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient115/patient115_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient115/patient115_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient115/patient115_frame13.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient115/patient115_frame13_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient119/patient119_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient119/patient119_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient119/patient119_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient119/patient119_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient117/patient117_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient117/patient117_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient117/patient117_frame13.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient117/patient117_frame13_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient148/patient148_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient148/patient148_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient148/patient148_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient148/patient148_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient150/patient150_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient150/patient150_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient150/patient150_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient150/patient150_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient140/patient140_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient140/patient140_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient140/patient140_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient140/patient140_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient127/patient127_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient127/patient127_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient127/patient127_frame07.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient127/patient127_frame07_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient116/patient116_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient116/patient116_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient116/patient116_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient116/patient116_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient136/patient136_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient136/patient136_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient136/patient136_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient136/patient136_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient102/patient102_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient102/patient102_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient102/patient102_frame13.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient102/patient102_frame13_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient122/patient122_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient122/patient122_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient122/patient122_frame06.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient122/patient122_frame06_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient133/patient133_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient133/patient133_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient133/patient133_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient133/patient133_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient128/patient128_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient128/patient128_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient128/patient128_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient128/patient128_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient110/patient110_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient110/patient110_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient110/patient110_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient110/patient110_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient121/patient121_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient121/patient121_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient121/patient121_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient121/patient121_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient123/patient123_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient123/patient123_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient123/patient123_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient123/patient123_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient141/patient141_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient141/patient141_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient141/patient141_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient141/patient141_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient130/patient130_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient130/patient130_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient130/patient130_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient130/patient130_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient101/patient101_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient101/patient101_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient101/patient101_frame14.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient101/patient101_frame14_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient112/patient112_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient112/patient112_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient112/patient112_frame12.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient112/patient112_frame12_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient118/patient118_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient118/patient118_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient118/patient118_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient118/patient118_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient132/patient132_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient132/patient132_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient132/patient132_frame15.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient132/patient132_frame15_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient125/patient125_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient125/patient125_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient125/patient125_frame07.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient125/patient125_frame07_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient139/patient139_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient139/patient139_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient139/patient139_frame08.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient139/patient139_frame08_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient131/patient131_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient131/patient131_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient131/patient131_frame09.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient131/patient131_frame09_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient146/patient146_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient146/patient146_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient146/patient146_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient146/patient146_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient103/patient103_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient103/patient103_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient103/patient103_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient103/patient103_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient106/patient106_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient106/patient106_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient106/patient106_frame13.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient106/patient106_frame13_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient114/patient114_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient114/patient114_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient114/patient114_frame11.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient114/patient114_frame11_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient113/patient113_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient113/patient113_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient113/patient113_frame08.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient113/patient113_frame08_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient135/patient135_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient135/patient135_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient135/patient135_frame10.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient135/patient135_frame10_gt.nii.gz"
+ },
+ {
+  "image_ED": "/home/liuhongzhi/Data/ACDC/testing/patient145/patient145_frame01.nii.gz",
+  "label_ED": "/home/liuhongzhi/Data/ACDC/testing/patient145/patient145_frame01_gt.nii.gz",
+  "image_ES": "/home/liuhongzhi/Data/ACDC/testing/patient145/patient145_frame13.nii.gz",
+  "label_ES": "/home/liuhongzhi/Data/ACDC/testing/patient145/patient145_frame13_gt.nii.gz"
+ }
+]
