@@ -44,6 +44,10 @@ The `--img-prefix` and `--img-suffix` flags can be used to provide a consistent 
 python setup.py install
 
 python ./scripts/torch/train_ACDC.py --img-list ./images/ACDC/train_list.txt --model-dir ./models/output --gpu 1
+
+bash ./scripts/torch/train_VoxelMorph_ACDC.sh
+
+nohup bash ./scripts/torch/train_VoxelMorph_ACDC.sh > /home/liuhongzhi/Data/Image_Registration/voxelmorph_results/train_voxelmorph_ACDC_20240803.txt 2>&1 &
 ```
 
 
