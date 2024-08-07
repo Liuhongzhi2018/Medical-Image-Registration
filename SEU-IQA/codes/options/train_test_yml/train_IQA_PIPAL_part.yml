@@ -1,0 +1,81 @@
+name: LPIPS-Alex_TonPIPAL
+use_tb_logger: true
+gpu_ids: [1]
+
+#### datasets
+datasets:
+  train:
+    # Select PIPAL or BAPPS as Training Data
+    choice: PIPAL
+
+    # Settings for PIPAL
+    # Displace 'mos_root' 'ref_root' 'dist_root' with your own path
+    train_PIPAL:
+      phase: train
+      name: PIPAL
+      mos_root: /home/liuhongzhi/Data/IQA/PIPAL/training_part/MOS_Scores_train
+      ref_root: /home/liuhongzhi/Data/IQA/PIPAL/training_part/Reference_train
+      dist_root: /home/liuhongzhi/Data/IQA/PIPAL/training_part/Distortion
+      n_workers: 8  # per GPU
+      batch_size: 16
+      crop_flag: true
+      crop_size: 248
+      norm_flag : true
+
+    # Settings for BAPPS
+    # Displace 'train_root' 'valid_root'
+    # Choose 'both' or 'train' or 'valid' for 'train_valid'
+    train_BAPPS:
+      phase: train
+      name: BAPPS
+      train_valid: both # both or train or valid | Decide which part of BAPPS dataset you want to use.
+      train_root : /home/liuhongzhi/Data/BAPPS/2afc/train
+      valid_root : /home/liuhongzhi/Data/BAPPS/2afc/val
+      n_workers: 8  # per GPU
+      batch_size: 16
+      crop_flag: true
+      crop_size: 248
+      norm_flag : true
+
+  val:
+    # Displace Validation & Change data_util.py based on your need.
+    test_PIPAL_Full:
+      name: PIPAL
+      mos_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/MOS_Scores_valid
+      ref_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/Reference_valid
+      dist_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/Distortion_valid
+
+    test_PIPAL_Valid:
+      name: PIPAL
+      mos_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/MOS_Scores_valid
+      ref_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/Reference_valid
+      dist_root: /home/liuhongzhi/Data/IQA/PIPAL/validation_part/Distortion_valid
+
+#### network structures
+network_G:
+  FENet: VGG16  # Alex or VGG16
+  tune_flag: false  # Fixed FE or Tunable FE
+  bias_flag: true  # Active bias of conv2d in regression layer
+  lpips_flag: false # Use LPIPS's regression layer
+
+#### path
+path:
+  pretrain_model_G:
+  pretrain_model_R:
+  strict_load: True
+  resume_state:
+
+#### training settings: learning rate scheme, loss
+train:
+  lr_IQA: !!float 1e-4
+  weight_decay_IQA: 0
+  niter: 1000000 # default 400000
+  warmup_iter: -1  # no warm up
+  loss_weight: !!float 1.0
+  manual_seed: 10
+  val_freq: !!float 1e3 # 2e3
+
+#### logger
+logger:
+  print_freq: 50
+  save_checkpoint_freq: !!float 2e3

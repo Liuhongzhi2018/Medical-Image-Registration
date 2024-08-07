@@ -1,0 +1,22 @@
+name: IQA
+use_tb_logger: true
+gpu_ids: None
+
+#### datasets
+datasets:
+  test:
+    test_fIQA:
+      name: fIQA
+      dist_root: /home/liuhongzhi/Data/IQA/face_IQA
+
+#### network structures
+network_G:
+  FENet: VGG16  # Alex or VGG16
+  tune_flag: false
+  bias_flag: true
+  lpips_flag: false
+
+#### path
+path:
+  pretrain_model_G: /home/liuhongzhi/Method/IQA/SEU-IQA/experiments/LPIPS-Alex_TonPIPAL_2024-08-07-02-12-15/models/2000_G.pth
+  strict_load: True
