@@ -21,6 +21,8 @@ To use the VoxelMorph library, either clone this repository and install the requ
 
 ```
 pip install voxelmorph
+
+python setup.py install
 ```
 
 ## Pre-trained models
@@ -41,13 +43,16 @@ The `--img-prefix` and `--img-suffix` flags can be used to provide a consistent 
 
 ```bash
 
-python setup.py install
-
 python ./scripts/torch/train_ACDC.py --img-list ./images/ACDC/train_list.txt --model-dir ./models/output --gpu 1
 
 bash ./scripts/torch/train_VoxelMorph_ACDC.sh
 
-nohup bash ./scripts/torch/train_VoxelMorph_ACDC.sh > /home/liuhongzhi/Data/Image_Registration/voxelmorph_results/train_voxelmorph_ACDC_20240803.txt 2>&1 &
+nohup bash ./scripts/torch/train_VoxelMorph_ACDC.sh > /home/liuhongzhi/Data/Image_Registration/voxelmorph_results/train_voxelmorph_ACDC_20240803v2.txt 2>&1 &
+
+python ./scripts/torch/train_ACDC.py --img-list ./images/ACDC/train_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 2
+
+python ./scripts/torch/train_semisupervised_ACDC.py --img-list ./images/ACDC/train_img_list.txt --seg-list ./images/ACDC/train_seg_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 2
+
 ```
 
 
@@ -60,6 +65,10 @@ If you simply want to register two images, you can use the `register.py` script 
 ```
 
 This will save the moved image to `warped.nii.gz`. To also save the predicted deformation field, use the `--save-warp` flag. Both npz or nifty files can be used as input/output in this script.
+
+```bash
+python ./scripts/torch/register_ACDC_dir.py --txt_path ./images/ACDC/test_list.txt --moved_dir ./models/VoxelMorph_2024-08-03-00-08-56/results --model ./models/VoxelMorph_2024-08-03-00-08-56/0180.pt --gpu 1
+```
 
 
 ## Testing (measuring Dice scores)

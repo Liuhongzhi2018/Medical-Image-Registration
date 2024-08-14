@@ -281,10 +281,125 @@ class VxmDense(LoadableModel):
         y_target = self.transformer(target, neg_flow) if self.bidir else None
 
         # return non-integrated flow field if training
+        # print(f"VxmDense registration: {registration}")
         if not registration:
             return (y_source, y_target, preint_flow) if self.bidir else (y_source, preint_flow)
         else:
             return y_source, pos_flow
+
+
+class VxmDenseSemiSupervisedSeg(LoadableModel):
+    """
+    VoxelMorph network for (semi-supervised) nonlinear registration between two images.
+    """
+
+    @store_config_args
+    def __init__(self,
+                 inshape,
+                 nb_unet_features=None,
+                 nb_unet_levels=None,
+                 unet_feat_mult=1,
+                 nb_unet_conv_per_level=1,
+                 int_steps=7,
+                 int_downsize=2,
+                 bidir=False,
+                 seg_resolution=2,
+                 seg_downsize=None,
+                 use_probs=False,
+                 src_feats=1,
+                 trg_feats=1,
+                 unet_half_res=False):
+        """ 
+        Parameters:
+            inshape: Input shape. e.g. (192, 192, 192)
+            nb_unet_features: Unet convolutional features. Can be specified via a list of lists with
+                the form [[encoder feats], [decoder feats]], or as a single integer. 
+                If None (default), the unet features are defined by the default config described in 
+                the unet class documentation.
+            nb_unet_levels: Number of levels in unet. Only used when nb_features is an integer. 
+                Default is None.
+            unet_feat_mult: Per-level feature multiplier. Only used when nb_features is an integer. 
+                Default is 1.
+            nb_unet_conv_per_level: Number of convolutions per unet level. Default is 1.
+            int_steps: Number of flow integration steps. The warp is non-diffeomorphic when this 
+                value is 0.
+            int_downsize: Integer specifying the flow downsample factor for vector integration. 
+                The flow field is not downsampled when this value is 1.
+            bidir: Enable bidirectional cost function. Default is False.
+            seg_resolution: Resolution (relative voxel size) of the segmentation.
+                Default is 2.
+            seg_downsize: Deprecated - use seg_resolution instead.
+            use_probs: Use probabilities in flow field. Default is False.
+            src_feats: Number of source image features. Default is 1.
+            trg_feats: Number of target image features. Default is 1.
+            unet_half_res: Skip the last unet decoder upsampling. Requires that int_downsize=2. 
+                Default is False.
+        """
+        super().__init__()
+
+        # internal flag indicating whether to return flow or integrated warp during inference
+        self.training = True
+
+        # configure bidirectional training
+        self.bidir = bidir
+
+        self.seg_resolution = seg_resolution
+        if seg_downsize is not None:
+            warnings.warn('seg_downsize is deprecated, use the seg_resolution parameter.')
+            seg_resolution = seg_downsize
+
+        # configure base voxelmorph network
+        self.vxm_model = VxmDense(inshape,
+                                  nb_unet_features=nb_unet_features,
+                                  bidir=bidir,
+                                  int_steps=int_steps,
+                                  int_downsize=int_downsize)
+
+    def forward(self, source, target, source_seg, registration=False):
+        '''
+        Parameters:
+            source: Source image tensor.
+            target: Target image tensor.
+            registration: Return transformed image and flow. Default is False.
+        '''
+        # print(f"VxmDenseSemiSupervisedSeg source: {source.shape} target: {target.shape} registration: {registration}")
+        # source: torch.Size([1, 1, 160, 192, 224]) target: torch.Size([1, 1, 160, 192, 224]) registration: False 
+        # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/networks.py 
+        # class VxmDense
+        y_source, pre_int_flow = self.vxm_model(source, target, registration)
+        # print(f"VxmDenseSemiSupervisedSeg y_source: {y_source.shape} pre_int_flow: {pre_int_flow.shape}")
+        # y_source: torch.Size([1, 1, 160, 192, 224]) pre_int_flow: torch.Size([1, 3, 80, 96, 112])
+
+        # integrate to produce diffeomorphic warp
+        # class VxmDense self.integrate
+        pos_flow = self.vxm_model.integrate(pre_int_flow)
+        # print(f"VxmDenseSemiSupervisedSeg pos_flow: {pos_flow.shape}")
+        # pos_flow: torch.Size([1, 3, 80, 96, 112])
+
+        # resize to full res
+        # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py 
+        # class ResizeTransform
+        seg_flow = layers.ResizeTransform(1/self.seg_resolution, 3)(pos_flow)
+        # print(f"VxmDenseSemiSupervisedSeg seg_flow: {seg_flow.shape}")
+        # seg_flow: torch.Size([1, 3, 160, 192, 224])
+
+        # warp image with flow field
+        # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/networks.py 
+        # class VxmDense  self.transformer  layers.SpatialTransformer
+        source2target_seg = self.vxm_model.transformer(source_seg, seg_flow)
+        # print(f"VxmDenseSemiSupervisedSeg source2target_seg: {source2target_seg.shape}")
+        # source2target_seg: torch.Size([1, 4, 160, 192, 224])
+
+        # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py 
+        # class ResizeTransform
+        y_seg = layers.ResizeTransform(1/2* self.seg_resolution, 3)(source2target_seg)
+        # print(f"VxmDenseSemiSupervisedSeg y_seg: {y_seg.shape}")
+        # y_seg: torch.Size([1, 4, 160, 192, 224])
+
+        flow = pos_flow if registration else pre_int_flow
+        # print(f"VxmDenseSemiSupervisedSeg flow: {flow.shape}")
+        # flow: torch.Size([1, 3, 80, 96, 112])
+        return (y_source, flow, y_seg)
 
 
 class ConvBlock(nn.Module):
