@@ -53,8 +53,11 @@ python ./scripts/torch/train_ACDC.py --img-list ./images/ACDC/train_list.txt --m
 
 python ./scripts/torch/train_semisupervised_ACDC.py --img-list ./images/ACDC/train_img_list.txt --seg-list ./images/ACDC/train_seg_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 2
 
+<<<<<<< HEAD
 python ./scripts/torch/train_LPBA.py --img-list ./images/LPBA/train_list.txt --atlas /mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 1
 
+=======
+>>>>>>> 8068c252e3222d6e2a167bd8e32f16d15e230a43
 ```
 
 
