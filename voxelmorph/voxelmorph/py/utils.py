@@ -104,6 +104,10 @@ def load_volfile(
         img = nib.load(filename)
         vol = np.squeeze(img.dataobj)
         affine = img.affine
+        # print(f"load_volfile: {filename} endswith nii {img.shape}")
+        # load_volfile: /mnt/lhz/Datasets/Learn2reg/LPBA40/train/S34.delineation.skullstripped.nii.gz 
+        # endswith nii (160, 192, 160)
+
     elif filename.endswith('.npy'):
         vol = np.load(filename)
         affine = None
@@ -115,17 +119,25 @@ def load_volfile(
         raise ValueError('unknown filetype for %s' % filename)
 
     if pad_shape:
+        # print(f"pad_shape: {pad_shape}")
         vol, _ = pad(vol, pad_shape)
 
     if add_feat_axis:
+        # print(f"add_feat_axis: {add_feat_axis}")
+        # add_feat_axis: True
         vol = vol[..., np.newaxis]
 
     if resize_factor != 1:
+        # print(f"resize_factor: {resize_factor}")
         vol = resize(vol, resize_factor)
 
     if add_batch_axis:
+        # print(f"add_batch_axis: {add_batch_axis}")
+        # add_batch_axis: True
         vol = vol[np.newaxis, ...]
 
+    # print(f"load_volfile ret_affine: {ret_affine} vol: {vol.shape}")
+    # load_volfile ret_affine: False vol: (1, 160, 192, 160, 1)
     return (vol, affine) if ret_affine else vol
 
 

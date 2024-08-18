@@ -103,7 +103,7 @@ def volgen_pairs(
         if os.path.isdir(vol_names):
             vol_names = os.path.join(vol_names, '*')
         vol_names = glob.glob(vol_names)
-    # print(f"*** volgen vol_names: {vol_names}")
+    print(f"*** volgen vol_names: {vol_names}")
 
     if isinstance(segs, list) and len(segs) != len(vol_names):
         raise ValueError('Number of image files must match number of seg files.')
@@ -137,6 +137,70 @@ def volgen_pairs(
             vols.append(np.concatenate(s, axis=0))
 
         yield (tuple(vols1), tuple(vols2))
+
+
+def volgen_pairs_with_seg(
+    vol_names,
+    seg_names, 
+    batch_size=1,
+    np_var='vol',
+    segs=None,
+    pad_shape=None,
+    resize_factor=1,
+    add_feat_axis=True
+):
+    """
+    Base generator for random volume loading. Volumes can be passed as a path to
+    the parent directory, a glob pattern, a list of file paths, or a list of
+    preloaded volumes. Corresponding segmentations are additionally loaded if
+    `segs` is provided as a list (of file paths or preloaded segmentations) or set
+    to True. If `segs` is True, npz files with variable names 'vol' and 'seg' are
+    expected. Passing in preloaded volumes (with optional preloaded segmentations)
+    allows volumes preloaded in memory to be passed to a generator.
+
+    Parameters:
+        vol_names: Path, glob pattern, list of volume files to load, or list of
+            preloaded volumes.
+        batch_size: Batch size. Default is 1.
+        segs: Loads corresponding segmentations. Default is None.
+        np_var: Name of the volume variable if loading npz files. Default is 'vol'.
+        pad_shape: Zero-pads loaded volumes to a given shape. Default is None.
+        resize_factor: Volume resize factor. Default is 1.
+        add_feat_axis: Load volume arrays with added feature axis. Default is True.
+    """
+
+    # convert glob path to filenames
+    if isinstance(vol_names, str):
+        if os.path.isdir(vol_names):
+            vol_names = os.path.join(vol_names, '*')
+        vol_names = glob.glob(vol_names)
+    # print(f"*** volgen vol_names: {vol_names}")
+    # print(f"*** volgen seg_names: {seg_names}")
+
+    if isinstance(segs, list) and len(segs) != len(vol_names):
+        raise ValueError('Number of image files must match number of seg files.')
+
+    while True:
+        # generate [batchsize] random image indices
+        indices = np.random.randint(len(vol_names), size=batch_size)
+
+        # load volumes and concatenate
+        load_params = dict(np_var=np_var, add_batch_axis=True, add_feat_axis=add_feat_axis,
+                           pad_shape=pad_shape, resize_factor=resize_factor)
+        # print(f"vol_names[i][0]: {vol_names[0][0]} vol_names[i][1]: {vol_names[0][1]}")
+        # vol_names[i][0]: /home/liuhongzhi/Data/ACDC/training/patient075/patient075_frame01.nii.gz 
+        # vol_names[i][1]: /home/liuhongzhi/Data/ACDC/training/patient075/patient075_frame06.nii.gz
+        imgs1 = [py.utils.load_volfile(vol_names[i][0], **load_params) for i in indices]
+        vols1 = [np.concatenate(imgs1, axis=0)]
+        imgs2 = [py.utils.load_volfile(vol_names[i][1], **load_params) for i in indices]
+        vols2 = [np.concatenate(imgs2, axis=0)]
+        imgs3 = [py.utils.load_volfile(seg_names[i][0], **load_params) for i in indices]
+        segs1 = [np.concatenate(imgs3, axis=0)]
+        imgs4 = [py.utils.load_volfile(seg_names[i][1], **load_params) for i in indices]
+        segs2 = [np.concatenate(imgs4, axis=0)]
+
+
+        yield (tuple(vols1), tuple(vols2), tuple(segs1), tuple(segs2))
 
 
 def scan_to_scan(vol_names, bidir=False, batch_size=1, prob_same=0, no_warp=False, **kwargs):
@@ -253,17 +317,29 @@ def scan_to_atlas(vol_names, atlas, bidir=False, batch_size=1, no_warp=False, se
     shape = atlas.shape[1:-1]
     zeros = np.zeros((batch_size, *shape, len(shape)))
     atlas = np.repeat(atlas, batch_size, axis=0)
+    # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/generators.py 
+    # def volgen
     gen = volgen(vol_names, batch_size=batch_size, segs=segs, **kwargs)
+    # print(f"scan_to_atlas atlas shape: {atlas.shape} shape: {shape} zeros: {zeros.shape} atlas: {atlas.shape}")
+    # scan_to_atlas atlas shape: (1, 160, 192, 160, 1) shape: (160, 192, 160) 
+    # zeros: (1, 160, 192, 160, 3) atlas: (1, 160, 192, 160, 1)
     while True:
         res = next(gen)
         scan = res[0]
         invols = [scan, atlas]
+        # print(f"scan_to_atlas scan shape: {scan.shape} atlas shape: {atlas.shape}")
+        # scan_to_atlas scan shape: (1, 160, 192, 160, 1) atlas shape: (1, 160, 192, 160, 1)
         if not segs:
+            # print(f"scan_to_atlas not segs")
+            # scan_to_atlas not segs
             outvols = [atlas, scan] if bidir else [atlas]
         else:
+            # print(f"scan_to_atlas have segs")
             seg = res[1]
             outvols = [seg, scan] if bidir else [seg]
         if not no_warp:
+            # print(f"scan_to_atlas not no_warp")
+            # scan_to_atlas not no_warp
             outvols.append(zeros)
         yield (invols, outvols)
 
@@ -308,6 +384,68 @@ def semisupervised(vol_names, seg_names, labels, atlas_file=None, downsize=2):
         if not atlas_file:
             trg_vol, trg_seg = next(gen)
             trg_seg = split_seg(trg_seg)
+
+        # cache zeros
+        if zeros is None:
+            shape = src_vol.shape[1:-1]
+            zeros = np.zeros((1, *shape, len(shape)))
+
+        invols = [src_vol, trg_vol, src_seg]
+        outvols = [trg_vol, zeros, trg_seg]
+        yield (invols, outvols)
+
+
+def semisupervised_pairs(vol_names, seg_names, batch_size=1, atlas_file=None, downsize=2):
+    """
+    Generator for semi-supervised registration training using ground truth segmentations.
+    Scan-to-atlas training can be enabled by providing the atlas_file argument. 
+
+    Parameters:
+        vol_names: List of volume files to load, or list of preloaded volumes.
+        seg_names: List of corresponding seg files to load, or list of preloaded volumes.
+        labels: Array of discrete label values to use in training.
+        atlas_file: Atlas npz file for scan-to-atlas training. Default is None.
+        downsize: Downsize factor for segmentations. Default is 2.
+    """
+    # configure base generator
+    # gen = volgen(vol_names, segs=seg_names, np_var='vol')
+    gen = volgen_pairs_with_seg(vol_names, seg_names, batch_size=batch_size)
+    zeros = None
+
+    # internal utility to generate downsampled prob seg from discrete seg
+    def split_seg(seg, labels):
+        prob_seg = np.zeros((*seg.shape[:4], len(labels)))
+        for i, label in enumerate(labels):
+            prob_seg[0, ..., i] = seg[0, ..., 0] == label
+        return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
+
+    # cache target vols and segs if atlas is supplied
+    if atlas_file:
+        trg_vol = py.utils.load_volfile(atlas_file, np_var='vol',
+                                        add_batch_axis=True, add_feat_axis=True)
+        trg_seg = py.utils.load_volfile(atlas_file, np_var='seg',
+                                        add_batch_axis=True, add_feat_axis=True)
+        trg_seg = split_seg(trg_seg)
+
+    while True:
+        # load source vol and seg
+        # src_vol, trg_vol = next(gen)
+        src_vol, trg_vol, src_seg, trg_seg = next(gen)
+        src_vol = src_vol[0]
+        trg_vol = trg_vol[0]
+        # print(f"semisupervised_pairs src_vol: {src_vol.shape} trg_vol: {trg_vol.shape} ")
+        # src_vol: (1, 216, 256, 8, 1) trg_vol: (1, 216, 256, 8, 1) 
+
+        # load target vol and seg (if not provided by atlas)
+        if not atlas_file:
+            # src_seg, trg_seg = next(gen_seg)
+            # print(f"semisupervised_pairs src_seg: {src_seg[0].shape} trg_seg: {trg_seg[0].shape} ")
+            # semisupervised_pairs src_seg: (1, 216, 256, 8, 1) trg_seg: (1, 216, 256, 8, 1) 
+            labels = np.unique(trg_seg[0])
+            # print(f"semisupervised_pairs labels: {labels}")
+            # semisupervised_pairs labels: [0 1 2 3]
+            src_seg = split_seg(src_seg[0], labels)
+            trg_seg = split_seg(trg_seg[0], labels)
 
         # cache zeros
         if zeros is None:

@@ -88,7 +88,7 @@ def train(args, logger, device, checkpoint_dir):
         #                                         batch_size=args.batch_size,
         #                                         bidir=args.bidir, 
         #                                         add_feat_axis=add_feat_axis)
-        generator = vxm.generators.scan_to_scan_pairs(train_files, 
+        generator = vxm.generators.scan_to_scan_pairs(train_files,
                                                 batch_size=args.batch_size,
                                                 bidir=args.bidir, 
                                                 add_feat_axis=add_feat_axis)

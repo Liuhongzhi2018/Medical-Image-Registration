@@ -164,6 +164,7 @@ if args.load_model:
     model = vxm.networks.VxmDense.load(args.load_model, device)
 else:
     # otherwise configure new model
+    # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/networks.py class VxmDense(LoadableModel)
     model = vxm.networks.VxmDense(
         inshape=inshape,
         nb_unet_features=[enc_nf, dec_nf],
