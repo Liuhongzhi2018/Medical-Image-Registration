@@ -174,8 +174,8 @@ def volgen_pairs_with_seg(
         if os.path.isdir(vol_names):
             vol_names = os.path.join(vol_names, '*')
         vol_names = glob.glob(vol_names)
-    # print(f"*** volgen vol_names: {vol_names}")
-    # print(f"*** volgen seg_names: {seg_names}")
+    # print(f"volgen_pairs_with_seg vol_names: {vol_names}")
+    # print(f"volgen_pairs_with_seg seg_names: {seg_names}")
 
     if isinstance(segs, list) and len(segs) != len(vol_names):
         raise ValueError('Number of image files must match number of seg files.')
@@ -198,7 +198,6 @@ def volgen_pairs_with_seg(
         segs1 = [np.concatenate(imgs3, axis=0)]
         imgs4 = [py.utils.load_volfile(seg_names[i][1], **load_params) for i in indices]
         segs2 = [np.concatenate(imgs4, axis=0)]
-
 
         yield (tuple(vols1), tuple(vols2), tuple(segs1), tuple(segs2))
 
@@ -417,7 +416,8 @@ def semisupervised_pairs(vol_names, seg_names, batch_size=1, atlas_file=None, do
         prob_seg = np.zeros((*seg.shape[:4], len(labels)))
         for i, label in enumerate(labels):
             prob_seg[0, ..., i] = seg[0, ..., 0] == label
-        return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
+        # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
+        return prob_seg
 
     # cache target vols and segs if atlas is supplied
     if atlas_file:
@@ -434,7 +434,7 @@ def semisupervised_pairs(vol_names, seg_names, batch_size=1, atlas_file=None, do
         src_vol = src_vol[0]
         trg_vol = trg_vol[0]
         # print(f"semisupervised_pairs src_vol: {src_vol.shape} trg_vol: {trg_vol.shape} ")
-        # src_vol: (1, 216, 256, 8, 1) trg_vol: (1, 216, 256, 8, 1) 
+        # semisupervised_pairs src_vol: (1, 160, 192, 160, 1) trg_vol: (1, 160, 192, 160, 1) 
 
         # load target vol and seg (if not provided by atlas)
         if not atlas_file:
@@ -446,8 +446,16 @@ def semisupervised_pairs(vol_names, seg_names, batch_size=1, atlas_file=None, do
             # semisupervised_pairs labels: [0 1 2 3]
             src_seg = split_seg(src_seg[0], labels)
             trg_seg = split_seg(trg_seg[0], labels)
+            # print(f"semisupervised_pairs src_seg: {src_seg.shape}")
+            # print(f"semisupervised_pairs trg_seg: {trg_seg.shape}")
+            # semisupervised_pairs src_seg: (1, 80, 96, 80, 57)
+            # semisupervised_pairs trg_seg: (1, 80, 96, 80, 57)
+            # semisupervised_pairs src_seg: (1, 160, 192, 160, 57)
+            # semisupervised_pairs trg_seg: (1, 160, 192, 160, 57)
 
         # cache zeros
+        # print(f"semisupervised_pairs zeros: {zero.shape}") if zeros else print(f"semisupervised_pairs zero None")
+        # semisupervised_pairs zero None
         if zeros is None:
             shape = src_vol.shape[1:-1]
             zeros = np.zeros((1, *shape, len(shape)))

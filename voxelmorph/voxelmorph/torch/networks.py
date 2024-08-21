@@ -221,6 +221,7 @@ class VxmDense(LoadableModel):
 
         # configure optional resize layers (downsize)
         if not unet_half_res and int_steps > 0 and int_downsize > 1:
+            # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py
             self.resize = layers.ResizeTransform(int_downsize, ndims)
         else:
             self.resize = None
@@ -251,37 +252,69 @@ class VxmDense(LoadableModel):
 
         # concatenate inputs and propagate unet
         x = torch.cat([source, target], dim=1)
+        # print(f"VxmDense x shape: {x.shape}")
+        # VxmDense x shape: torch.Size([1, 2, 192, 192, 192])
         x = self.unet_model(x)
+        # print(f"VxmDense unet_model shape: {x.shape}")
+        # VxmDense unet_model shape: torch.Size([1, 16, 192, 192, 192])
 
         # transform into flow field
         flow_field = self.flow(x)
+        # print(f"VxmDense flow_field shape: {flow_field.shape}")
+        # VxmDense flow_field shape: torch.Size([1, 3, 192, 192, 192])
 
         # resize flow for integration
         pos_flow = flow_field
+        # print(f"VxmDense resize: {self.resize}")
+        # VxmDense resize: ResizeTransform()
         if self.resize:
             pos_flow = self.resize(pos_flow)
-
+        
         preint_flow = pos_flow
-
+        # print(f"VxmDense preint_flow shape: {preint_flow.shape}")
+        # VxmDense preint_flow shape: torch.Size([1, 3, 96, 96, 96])
+        
         # negate flow for bidirectional model
+        # print(f"VxmDense bidir: {self.bidir}")
+        # VxmDense bidir: False
         neg_flow = -pos_flow if self.bidir else None
 
         # integrate to produce diffeomorphic warp
+        # print(f"VxmDense integrate: {self.integrate}")
+        # VxmDense integrate: VecInt(
+        # (transformer): SpatialTransformer()
+        # )
+
         if self.integrate:
             pos_flow = self.integrate(pos_flow)
             neg_flow = self.integrate(neg_flow) if self.bidir else None
+            # print(f"VxmDense integrate pos_flow shape: {pos_flow.shape}")
+            # VxmDense integrate pos_flow shape: torch.Size([1, 3, 96, 96, 96])
+            # print(f"VxmDense integrate neg_flow shape: {neg_flow.shape}") if neg_flow is not None else print(f"VxmDense integrate neg_flow None")
+            # VxmDense integrate neg_flow None
 
             # resize to final resolution
+            # print(f"VxmDense fullsize: {self.fullsize}")
+            # VxmDense fullsize: ResizeTransform()
             if self.fullsize:
                 pos_flow = self.fullsize(pos_flow)
                 neg_flow = self.fullsize(neg_flow) if self.bidir else None
+            # print(f"VxmDense fullsize pos_flow shape: {pos_flow.shape}")
+            # VxmDense fullsize pos_flow shape: torch.Size([1, 3, 192, 192, 192])
+            # print(f"VxmDense fullsize neg_flow shape: {neg_flow.shape}") if neg_flow is not None else print(f"VxmDense fullsize neg_flow None")
+            # VxmDense fullsize neg_flow None
 
         # warp image with flow field
         y_source = self.transformer(source, pos_flow)
         y_target = self.transformer(target, neg_flow) if self.bidir else None
+        # print(f"VxmDense y_source shape: {y_source.shape}")
+        # VxmDense y_source shape: torch.Size([1, 1, 192, 192, 192])
+        # print(f"VxmDense y_target shape: {y_target.shape}") if y_target is not None else print(f"VxmDense integrate y_target None")
+        # VxmDense integrate y_target None
 
         # return non-integrated flow field if training
         # print(f"VxmDense registration: {registration}")
+        # VxmDense registration: False
         if not registration:
             return (y_source, y_target, preint_flow) if self.bidir else (y_source, preint_flow)
         else:
@@ -368,37 +401,38 @@ class VxmDenseSemiSupervisedSeg(LoadableModel):
         # class VxmDense
         y_source, pre_int_flow = self.vxm_model(source, target, registration)
         # print(f"VxmDenseSemiSupervisedSeg y_source: {y_source.shape} pre_int_flow: {pre_int_flow.shape}")
-        # y_source: torch.Size([1, 1, 160, 192, 224]) pre_int_flow: torch.Size([1, 3, 80, 96, 112])
+        # VxmDenseSemiSupervisedSeg y_source: torch.Size([1, 1, 192, 192, 192]) pre_int_flow: torch.Size([1, 3, 96, 96, 96])
 
         # integrate to produce diffeomorphic warp
         # class VxmDense self.integrate
         pos_flow = self.vxm_model.integrate(pre_int_flow)
         # print(f"VxmDenseSemiSupervisedSeg pos_flow: {pos_flow.shape}")
-        # pos_flow: torch.Size([1, 3, 80, 96, 112])
+        # VxmDenseSemiSupervisedSeg pos_flow: torch.Size([1, 3, 96, 96, 96])
 
         # resize to full res
         # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py 
         # class ResizeTransform
-        seg_flow = layers.ResizeTransform(1/self.seg_resolution, 3)(pos_flow)
+        # seg_flow = layers.ResizeTransform(1/self.seg_resolution, 3)(pos_flow)
+        seg_flow = self.vxm_model.fullsize(pos_flow)
         # print(f"VxmDenseSemiSupervisedSeg seg_flow: {seg_flow.shape}")
-        # seg_flow: torch.Size([1, 3, 160, 192, 224])
+        # VxmDenseSemiSupervisedSeg seg_flow: torch.Size([1, 3, 192, 192, 192])
 
         # warp image with flow field
         # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/networks.py 
         # class VxmDense  self.transformer  layers.SpatialTransformer
         source2target_seg = self.vxm_model.transformer(source_seg, seg_flow)
         # print(f"VxmDenseSemiSupervisedSeg source2target_seg: {source2target_seg.shape}")
-        # source2target_seg: torch.Size([1, 4, 160, 192, 224])
+        # VxmDenseSemiSupervisedSeg source2target_seg: torch.Size([1, 57, 192, 192, 192])
 
         # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py 
         # class ResizeTransform
-        y_seg = layers.ResizeTransform(1/2* self.seg_resolution, 3)(source2target_seg)
+        y_seg = layers.ResizeTransform(1/2 * self.seg_resolution, 3)(source2target_seg)
         # print(f"VxmDenseSemiSupervisedSeg y_seg: {y_seg.shape}")
-        # y_seg: torch.Size([1, 4, 160, 192, 224])
+        # VxmDenseSemiSupervisedSeg y_seg: torch.Size([1, 57, 192, 192, 192])
 
         flow = pos_flow if registration else pre_int_flow
         # print(f"VxmDenseSemiSupervisedSeg flow: {flow.shape}")
-        # flow: torch.Size([1, 3, 80, 96, 112])
+        # VxmDenseSemiSupervisedSeg flow: torch.Size([1, 3, 96, 96, 96])
         return (y_source, flow, y_seg)
 
 
@@ -418,3 +452,5 @@ class ConvBlock(nn.Module):
         out = self.main(x)
         out = self.activation(out)
         return out
+
+

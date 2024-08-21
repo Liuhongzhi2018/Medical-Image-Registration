@@ -75,7 +75,17 @@ def train(args, logger, device, checkpoint_dir):
                                              prefix=args.seg_prefix,
                                              suffix=args.seg_suffix)
     assert len(train_imgs) > 0, 'Could not find any training data.'
-
+    # print(f"train_imgs: {train_imgs}")
+    # print(f"train_segs: {train_segs}")
+    # train_imgs: [['/mnt/lhz/Datasets/Learn2reg/LPBA40/train/S25.delineation.skullstripped.nii.gz', 
+    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz'], 
+    #              ['/mnt/lhz/Datasets/Learn2reg/LPBA40/train/S27.delineation.skullstripped.nii.gz', 
+    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz']
+    # train_segs: [['/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S25.delineation.structure.label.nii.gz', 
+    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz'], 
+    #              ['/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S27.delineation.structure.label.nii.gz', 
+    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz']
+                 
     # parser.add_argument('--labels', required=True, help='label list (npy format) to use in dice loss')
     # load labels file
     # train_labels = np.load(args.labels)
@@ -193,7 +203,7 @@ def train(args, logger, device, checkpoint_dir):
         epoch_step_time = []
 
         for step in range(args.steps_per_epoch):
-
+            
             step_start_time = time.time()
 
             # generate inputs (and true outputs) and convert them to tensors
@@ -202,7 +212,11 @@ def train(args, logger, device, checkpoint_dir):
             y_true = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in y_true]
             inputs = [F.interpolate(d, size=inshape) for d in inputs]
             y_true = [F.interpolate(d, size=inshape) for d in y_true]
-
+            # print(f"inputs n: {len(inputs)} {' '.join(str(i.shape) for i in inputs)}")
+            # print(f"y_true n: {len(y_true)} {' '.join(str(y.shape) for y in y_true)}")
+            # inputs n: 3 torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 57, 192, 192, 192])
+            # y_true n: 3 torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 3, 192, 192, 192]) torch.Size([1, 57, 192, 192, 192])
+            
             # run inputs through the model to produce a warped image and flow field
             y_pred = model(*inputs)
 
@@ -217,7 +231,7 @@ def train(args, logger, device, checkpoint_dir):
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
-                
+            
             print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
 
             epoch_loss.append(loss_list)
@@ -294,7 +308,7 @@ if __name__ == "__main__":
                         help='weight of deformation loss (default: 0.01)')
     # parse configs
     args = parser.parse_args()
-    print(f"Config: {args}")
+    # print(f"Config: {args}")
 
     # device handling
     gpus = args.gpu.split(',')
@@ -306,13 +320,15 @@ if __name__ == "__main__":
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
 
     # prepare model folder
     model_dir = args.model_dir
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    checkpoint_dir = os.path.join(model_dir, "VoxelMorph_ACDC_seg_"+curr_time)
+    checkpoint_dir = os.path.join(model_dir, "VoxelMorph_LPBA_seg_"+curr_time)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Logger
