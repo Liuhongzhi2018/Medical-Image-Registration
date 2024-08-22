@@ -273,6 +273,7 @@ class VxmDense(LoadableModel):
         preint_flow = pos_flow
         # print(f"VxmDense preint_flow shape: {preint_flow.shape}")
         # VxmDense preint_flow shape: torch.Size([1, 3, 96, 96, 96])
+        # VxmDense preint_flow shape: torch.Size([1, 3, 192, 192, 192])
         
         # negate flow for bidirectional model
         # print(f"VxmDense bidir: {self.bidir}")
@@ -408,12 +409,13 @@ class VxmDenseSemiSupervisedSeg(LoadableModel):
         pos_flow = self.vxm_model.integrate(pre_int_flow)
         # print(f"VxmDenseSemiSupervisedSeg pos_flow: {pos_flow.shape}")
         # VxmDenseSemiSupervisedSeg pos_flow: torch.Size([1, 3, 96, 96, 96])
+        # VxmDenseSemiSupervisedSeg pos_flow: torch.Size([1, 3, 192, 192, 192])
 
         # resize to full res
         # /mnt/lhz/Github/Image_registration/voxelmorph/voxelmorph/torch/layers.py 
         # class ResizeTransform
         # seg_flow = layers.ResizeTransform(1/self.seg_resolution, 3)(pos_flow)
-        seg_flow = self.vxm_model.fullsize(pos_flow)
+        seg_flow = self.vxm_model.fullsize(pos_flow) if self.vxm_model.fullsize else pos_flow
         # print(f"VxmDenseSemiSupervisedSeg seg_flow: {seg_flow.shape}")
         # VxmDenseSemiSupervisedSeg seg_flow: torch.Size([1, 3, 192, 192, 192])
 
@@ -428,11 +430,11 @@ class VxmDenseSemiSupervisedSeg(LoadableModel):
         # class ResizeTransform
         y_seg = layers.ResizeTransform(1/2 * self.seg_resolution, 3)(source2target_seg)
         # print(f"VxmDenseSemiSupervisedSeg y_seg: {y_seg.shape}")
-        # VxmDenseSemiSupervisedSeg y_seg: torch.Size([1, 57, 192, 192, 192])
+        # VxmDenseSemiSupervisedSeg y_seg: torch.Size([1, 4, 192, 192, 192])
 
         flow = pos_flow if registration else pre_int_flow
         # print(f"VxmDenseSemiSupervisedSeg flow: {flow.shape}")
-        # VxmDenseSemiSupervisedSeg flow: torch.Size([1, 3, 96, 96, 96])
+        # VxmDenseSemiSupervisedSeg flow: torch.Size([1, 3, 192, 192, 192])
         return (y_source, flow, y_seg)
 
 

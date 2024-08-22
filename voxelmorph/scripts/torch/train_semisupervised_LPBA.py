@@ -44,30 +44,268 @@ import torch
 import torch.nn.functional as F
 import time
 import logging
+import SimpleITK as sitk
+import statistics
+from scipy.ndimage import _ni_support
+from scipy.ndimage.morphology import distance_transform_edt, \
+                                     binary_erosion,\
+                                     generate_binary_structure
 
 # import voxelmorph with pytorch backend
 os.environ['NEURITE_BACKEND'] = 'pytorch'
 os.environ['VXM_BACKEND'] = 'pytorch'
 import voxelmorph as vxm  # nopep83
 
+def read_files_txt(txt_path):
+    with open(txt_path, 'r') as file:
+        content = file.readlines()
+    filelist = [x.strip() for x in content]
+    return filelist
 
-def train(args, logger, device, checkpoint_dir):
+# internal utility to generate downsampled prob seg from discrete seg
+def split_seg(seg, labels):
+    prob_seg = np.zeros((*seg.shape[:4], len(labels)))
+    for i, label in enumerate(labels):
+        prob_seg[0, ..., i] = seg[0, ..., 0] == label
+    # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
+    return prob_seg
+
+def __surface_distances(result, reference, voxelspacing=None, connectivity=1):
+    """
+    The distances between the surface voxel of binary objects in result and their
+    nearest partner surface voxel of a binary object in reference.
+    """
+    result = np.atleast_1d(result.astype(np.bool_))
+    reference = np.atleast_1d(reference.astype(np.bool_))
+    if voxelspacing is not None:
+        voxelspacing = _ni_support._normalize_sequence(voxelspacing, result.ndim)
+        voxelspacing = np.asarray(voxelspacing, dtype=np.float64)
+        if not voxelspacing.flags.contiguous:
+            voxelspacing = voxelspacing.copy()
+    # binary structure
+    footprint = generate_binary_structure(result.ndim, connectivity)
+    # test for emptiness
+    if 0 == np.count_nonzero(result): 
+        raise RuntimeError('The first supplied array does not contain any binary object.')
+    if 0 == np.count_nonzero(reference): 
+        raise RuntimeError('The second supplied array does not contain any binary object.')    
+    # extract only 1-pixel border line of objects
+    result_border = result ^ binary_erosion(result, structure=footprint, iterations=1)
+    reference_border = reference ^ binary_erosion(reference, structure=footprint, iterations=1)
+    # compute average surface distance        
+    # Note: scipys distance transform is calculated only inside the borders of the
+    #       foreground objects, therefore the input has to be reversed
+    dt = distance_transform_edt(~reference_border, sampling=voxelspacing)
+    sds = dt[result_border]
+    return sds
+
+def hd95(result, reference, voxelspacing=None, connectivity=1):
+    """
+    95th percentile of the Hausdorff Distance.
+    """
+    hd1 = __surface_distances(result, reference, voxelspacing, connectivity)
+    hd2 = __surface_distances(reference, result, voxelspacing, connectivity)
+    hd95 = np.percentile(np.hstack((hd1, hd2)), 95)
+    return hd95
+
+def iou(pred, gt, classes=1):
+    intersection = np.logical_and(gt, pred)
+    union = np.logical_or(gt, pred)
+    iou = np.sum(intersection) / np.sum(union)
+    return iou
+
+def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
+    x = np.linspace(0, fx_lms.shape[0] - 1, fx_lms.shape[0])
+    y = np.linspace(0, fx_lms.shape[1] - 1, fx_lms.shape[1])
+    z = np.linspace(0, fx_lms.shape[2] - 1, fx_lms.shape[2])
+    yv, xv, zv = np.meshgrid(y, x, z)
+    unique = np.unique(fx_lms)
+
+    dfm_pos = np.zeros((len(unique) - 1, 3))
+    for i in range(1, len(unique)):
+        label = (dfm_lms == unique[i]).astype('float32')
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
+        dfm_pos[i - 1, 0] = xc
+        dfm_pos[i - 1, 1] = yc
+        dfm_pos[i - 1, 2] = zc
+
+    fx_pos = np.zeros((len(unique) - 1, 3))
+    for i in range(1, len(unique)):
+        label = (fx_lms == unique[i]).astype('float32')
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
+        fx_pos[i - 1, 0] = xc
+        fx_pos[i - 1, 1] = yc
+        fx_pos[i - 1, 2] = zc
+
+    dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
+    return dfm_fx_error
+
+def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
+    n_dice_list = []
+    n_hd95_list = []
+    n_iou_list = []
+    class_num = np.unique(gt)
+    for c in class_num:
+        if c == 0: continue
+        ngt_data = np.zeros_like(gt)
+        ngt_data[gt == c] = 1
+        npred_data = np.zeros_like(pre)
+        npred_data[pre == c] = 1
+        n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
+        n_hd95 = hd95(ngt_data, npred_data, voxelspacing = gtspacing[::-1])
+        n_iou = iou(npred_data, ngt_data)
+        n_dice_list.append(n_dice)
+        n_hd95_list.append(n_hd95)
+        n_iou_list.append(n_iou)
+    mean_Dice = statistics.mean(n_dice_list)
+    mean_HD95 = statistics.mean(n_hd95_list)
+    mean_iou = statistics.mean(n_iou_list)
+    
+    tre = calc_TRE(ngt_data, npred_data)
+    return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
+
+def register(model, epoch, logger, args):
+    # load moving and fixed images
+    add_feat_axis = not args.multichannel
+    
+    inshape = (192, 192, 192)
+    pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
+    
+    # model.eval()
+    # with torch.no_grad():
+    for p in pairlist:
+        moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
+        warped_img = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
+        warped_seg = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
+      
+        moving = vxm.py.utils.load_volfile(moving_img,
+                                            np_var='vol',
+                                            add_batch_axis=True, 
+                                            add_feat_axis=add_feat_axis)
+        
+        moving_seg = vxm.py.utils.load_volfile(moving_seg,
+                                                np_var='seg',
+                                                add_batch_axis=True, 
+                                                add_feat_axis=add_feat_axis)
+        
+        fixed, fixed_affine = vxm.py.utils.load_volfile(fixed_img,
+                                                        np_var='vol',
+                                                        add_batch_axis=True, 
+                                                        add_feat_axis=add_feat_axis, 
+                                                        ret_affine=True)
+        
+        fixed_seg = vxm.py.utils.load_volfile(fixed_seg,
+                                                np_var='seg',
+                                                add_batch_axis=True, 
+                                                add_feat_axis=add_feat_axis)
+        
+        labels = np.unique(fixed_seg)
+        # print(f"semisupervised_pairs labels: {labels}")
+        # semisupervised_pairs labels: [0 1 2 3]
+        src_seg = split_seg(moving_seg, labels)
+        trg_seg = split_seg(fixed_seg, labels)
+        
+        # print(f"register moving: {moving.shape} moving_seg: {moving_seg.shape}")
+        # print(f"register fixed: {fixed.shape} fixed_seg: {fixed_seg.shape}")
+        # print(f"register src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
+        # register moving: (1, 256, 216, 9, 1) moving_seg: (1, 256, 216, 9, 1)
+        # register fixed: (1, 256, 216, 9, 1) fixed_seg: (1, 256, 216, 9, 1)
+        # register src_seg: (1, 256, 216, 9, 4) trg_seg: (1, 256, 216, 9, 4)
+        
+        input_moving = torch.from_numpy(moving).to(device).float().permute(0, 4, 1, 2, 3)
+        input_fixed = torch.from_numpy(fixed).to(device).float().permute(0, 4, 1, 2, 3)
+        input_moving_seg = torch.from_numpy(src_seg).to(device).float().permute(0, 4, 1, 2, 3)
+        input_fixed_seg = torch.from_numpy(trg_seg).to(device).float().permute(0, 4, 1, 2, 3)
+        input_moving = F.interpolate(input_moving, size=inshape)
+        input_fixed = F.interpolate(input_fixed, size=inshape)
+        input_moving_seg = F.interpolate(input_moving_seg, size=inshape)
+        input_fixed_seg = F.interpolate(input_fixed_seg, size=inshape)
+        # print(f"register input_moving: {input_moving.shape} input_fixed: {input_fixed.shape} input_moving_seg: {input_moving_seg.shape}")
+        
+        # moved_img, warp, moved_seg = model(input_moving, input_fixed, input_moving_seg, registration=True)
+        moved_img, warp, moved_seg = model(input_moving, input_fixed, input_moving_seg)
+        
+        data_in = sitk.ReadImage(p[2])
+        shape_img = data_in.GetSize()
+        ED_origin = data_in.GetOrigin()
+        ED_direction = data_in.GetDirection()
+        ED_spacing = data_in.GetSpacing()
+        # print(f"register fixed image shape: {shape_img}")
+        # register fixed image shape: (256, 216, 10)
+        data_seg = sitk.ReadImage(p[3])
+        fixed_seg_array = sitk.GetArrayFromImage(data_seg)
+        
+        moved_img = F.interpolate(moved_img, size=shape_img)
+        moved_img = moved_img.detach().cpu().numpy().squeeze().transpose(2, 1, 0)
+        # print(f"register out moved_img: {moved_img.shape}")
+        # register out moved_img: (192, 192, 192)
+        # register out moved_img: (10, 216, 256)
+        img_path = os.path.join(args.sample_dir, warped_img)
+        # vxm.py.utils.save_volfile(moved_img, img_path, fixed_affine)
+        
+        # moved_seg = moved_seg.detach().cpu().numpy().squeeze()
+        moved_seg = F.interpolate(moved_seg, size=shape_img)
+        moved_seg = torch.argmax(moved_seg.squeeze(), dim=0).detach().cpu().numpy().transpose(2, 1, 0).astype(np.uint8)
+        # print(f"register out moved_seg: {moved_seg.shape}")
+        # register out moved_seg: (4, 192, 192, 192)
+        # register out moved_seg: (10, 216, 256)
+        seg_path = os.path.join(args.sample_dir, warped_seg)
+        # vxm.py.utils.save_volfile(moved_seg, seg_path, fixed_affine)
+
+        warp = F.interpolate(warp, size=shape_img)
+        deform = warp.detach().cpu().numpy().squeeze().transpose(3, 2, 1, 0)
+        # print(f"register out warp: {deform.shape}")
+        # register out warp: (3, 192, 192, 192)
+        # register out warp: (10, 216, 256, 3)
+        warp_path = os.path.join(args.sample_dir, warped_flow)
+        # vxm.py.utils.save_volfile(warp, warp_path, fixed_affine)
+        
+        # print(f"------ Saving training samples epoch: {epoch} {moving_img.split('/')[-1]} ------")
+        savedSample_warped = sitk.GetImageFromArray(moved_img)
+        savedSample_seg = sitk.GetImageFromArray(moved_seg)
+        savedSample_defm = sitk.GetImageFromArray(deform)
+        
+        savedSample_warped.SetOrigin(ED_origin)
+        savedSample_seg.SetOrigin(ED_origin)
+        savedSample_defm.SetOrigin(ED_origin)
+        
+        savedSample_warped.SetDirection(ED_direction)
+        savedSample_seg.SetDirection(ED_direction)
+        savedSample_defm.SetDirection(ED_direction)
+        
+        savedSample_warped.SetSpacing(ED_spacing)
+        savedSample_seg.SetSpacing(ED_spacing)
+        savedSample_defm.SetSpacing(ED_spacing)
+        
+        sitk.WriteImage(savedSample_warped, img_path)
+        sitk.WriteImage(savedSample_seg, seg_path)
+        sitk.WriteImage(savedSample_defm, warp_path)
+        
+        # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
+        tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
+        
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
+
+    cur_avgdice, cur_avghd95, cur_avgiou = statistics.mean(dice_list), statistics.mean(hd95_list), statistics.mean(IOU_list)
+    cur_meanTre = statistics.mean(tre_list)
+    
+    logger.info(f"Epoch: {epoch} - avgDice: {cur_avgdice} avgHD95: {cur_avghd95} avgIOU: {cur_avgiou} avgTRE: {cur_meanTre}")
+    
+    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre
+
+
+def train(args, logger, device):
     bidir = args.bidir
 
     # load and prepare training data
     # /home/liuhongzhi/Method/Registration/voxelmorph/voxelmorph/py/utils.py
-    # train_files = vxm.py.utils.read_file_list(args.img_list, 
-    #                                           prefix=args.img_prefix,
-    #                                           suffix=args.img_suffix)
-    # train_files = vxm.py.utils.read_pair_list(args.img_list,
-    #                                         prefix=args.img_prefix,
-    #                                         suffix=args.img_suffix)
-    # train_imgs = vxm.py.utils.read_file_list(args.img_list,
-    #                                          prefix=args.img_prefix,
-    #                                          suffix=args.img_suffix)
-    # train_segs = vxm.py.utils.read_file_list(args.seg_list,
-    #                                          prefix=args.seg_prefix,
-    #                                          suffix=args.seg_suffix)
     train_imgs = vxm.py.utils.read_pair_list(args.img_list,
                                              prefix=args.img_prefix,
                                              suffix=args.img_suffix)
@@ -75,17 +313,7 @@ def train(args, logger, device, checkpoint_dir):
                                              prefix=args.seg_prefix,
                                              suffix=args.seg_suffix)
     assert len(train_imgs) > 0, 'Could not find any training data.'
-    # print(f"train_imgs: {train_imgs}")
-    # print(f"train_segs: {train_segs}")
-    # train_imgs: [['/mnt/lhz/Datasets/Learn2reg/LPBA40/train/S25.delineation.skullstripped.nii.gz', 
-    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz'], 
-    #              ['/mnt/lhz/Datasets/Learn2reg/LPBA40/train/S27.delineation.skullstripped.nii.gz', 
-    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz']
-    # train_segs: [['/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S25.delineation.structure.label.nii.gz', 
-    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz'], 
-    #              ['/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S27.delineation.structure.label.nii.gz', 
-    #               '/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz']
-                 
+
     # parser.add_argument('--labels', required=True, help='label list (npy format) to use in dice loss')
     # load labels file
     # train_labels = np.load(args.labels)
@@ -93,7 +321,6 @@ def train(args, logger, device, checkpoint_dir):
     # no need to append an extra feature axis if data is multichannel
     add_feat_axis = not args.multichannel
 
-    # print(f"*** atlas: {args.atlas}")
     if args.atlas:
         # scan-to-atlas generator
         # /home/liuhongzhi/Method/Registration/voxelmorph/voxelmorph/py/utils.py
@@ -110,14 +337,6 @@ def train(args, logger, device, checkpoint_dir):
     else:
         # scan-to-scan generator
         # /home/liuhongzhi/Method/Registration/voxelmorph/voxelmorph/generators.py
-        # generator = vxm.generators.scan_to_scan(train_files, 
-        #                                         batch_size=args.batch_size,
-        #                                         bidir=args.bidir, 
-        #                                         add_feat_axis=add_feat_axis)
-        # generator = vxm.generators.scan_to_scan_pairs(train_files, 
-        #                                         batch_size=args.batch_size,
-        #                                         bidir=args.bidir, 
-        #                                         add_feat_axis=add_feat_axis)
         generator = vxm.generators.semisupervised_pairs(train_imgs, 
                                                         train_segs, 
                                                         atlas_file=args.atlas)
@@ -143,11 +362,6 @@ def train(args, logger, device, checkpoint_dir):
                                            device)
     else:
         # otherwise configure new model
-        # model = vxm.networks.VxmDense(inshape=inshape,
-        #                               nb_unet_features=[enc_nf, dec_nf],
-        #                               bidir=bidir,
-        #                               int_steps=args.int_steps,
-        #                               int_downsize=args.int_downsize)
         model = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=inshape,
                                                        nb_unet_features=[enc_nf, dec_nf],
                                                        bidir=bidir,
@@ -161,7 +375,7 @@ def train(args, logger, device, checkpoint_dir):
 
     # prepare the model for training and send to device
     model.to(device)
-    model.train()
+    # model.train()
     logger.info(f"Model: {model}")
 
     # set optimizer
@@ -189,21 +403,16 @@ def train(args, logger, device, checkpoint_dir):
 
     losses += [vxm.losses.Dice().loss]
     weights += [args.weight]
-
+    
+    best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
     # training loops
     for epoch in range(args.initial_epoch, args.epochs):
-
-        # save model checkpoint
-        if epoch % 20 == 0:
-            model.save(os.path.join(checkpoint_dir, '%04d.pt' % epoch))
-            logger.info(f"Saving model to: {os.path.join(checkpoint_dir, '%04d.pt' % epoch)}")
-
         epoch_loss = []
         epoch_total_loss = []
         epoch_step_time = []
-
+        model.train()
         for step in range(args.steps_per_epoch):
-            
+
             step_start_time = time.time()
 
             # generate inputs (and true outputs) and convert them to tensors
@@ -212,11 +421,7 @@ def train(args, logger, device, checkpoint_dir):
             y_true = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in y_true]
             inputs = [F.interpolate(d, size=inshape) for d in inputs]
             y_true = [F.interpolate(d, size=inshape) for d in y_true]
-            # print(f"inputs n: {len(inputs)} {' '.join(str(i.shape) for i in inputs)}")
-            # print(f"y_true n: {len(y_true)} {' '.join(str(y.shape) for y in y_true)}")
-            # inputs n: 3 torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 57, 192, 192, 192])
-            # y_true n: 3 torch.Size([1, 1, 192, 192, 192]) torch.Size([1, 3, 192, 192, 192]) torch.Size([1, 57, 192, 192, 192])
-            
+
             # run inputs through the model to produce a warped image and flow field
             y_pred = model(*inputs)
 
@@ -231,7 +436,6 @@ def train(args, logger, device, checkpoint_dir):
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
-            
             print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
 
             epoch_loss.append(loss_list)
@@ -246,16 +450,51 @@ def train(args, logger, device, checkpoint_dir):
             epoch_step_time.append(time.time() - step_start_time)
 
         # print epoch info
-        epoch_info = 'Epoch %d/%d' % (epoch + 1, args.epochs)
+        # epoch_info = 'Epoch %d/%d' % (epoch + 1, args.epochs)
+        epoch_info = 'Epoch %d/%d' % (epoch, args.epochs)
         time_info = '%.4f sec/step' % np.mean(epoch_step_time)
         losses_info = ', '.join(['%.4e' % f for f in np.mean(epoch_loss, axis=0)])
         loss_info = 'loss: %.4e  (%s)' % (np.mean(epoch_total_loss), losses_info)
         # print(' - '.join((epoch_info, time_info, loss_info)), flush=True)
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
+        
+        # save model checkpoint
+        if epoch % 1 == 0:
+            with torch.no_grad():
+                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
+                    
+            # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
+            if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
+                best_epoch = epoch
+                best_avg_Dice = cur_avg_dice
+                best_avg_HD95 = cur_avg_hd95
+                best_avg_iou = cur_avg_iou
+                best_avg_tre = cur_meanTre
+                model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
+                # print(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+                logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+                
+        for f in os.listdir(args.sample_dir):
+            if "ep" + str(best_epoch) in f: continue
+            else:
+                os.remove(os.path.join(args.sample_dir, f))
+                # print(f"remove samples without < epoch {best_epoch} >")
+                
+        for f in os.listdir(args.checkpoint_dir):
+            if '%04d.pth' % best_epoch in f or 'log' in f or 'best' in f: continue
+            if not os.path.isdir(os.path.join(args.checkpoint_dir, f)):
+                os.remove(os.path.join(args.checkpoint_dir, f))
+            # print(f"remove pth without < epoch {best_epoch} >")
+            
+        model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
+        logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
 
+        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+  
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
-    model.save(os.path.join(checkpoint_dir, 'final.pt'))
+    model.save(os.path.join(args.checkpoint_dir, 'final.pth'))
 
 
 if __name__ == "__main__":
@@ -275,6 +514,7 @@ if __name__ == "__main__":
                         help='model output directory (default: models)')
     parser.add_argument('--multichannel', action='store_true',
                         help='specify that data has multiple channels')
+    parser.add_argument('--test-txt-path', required=True, help='moving image (source) filename')
 
     # training parameters
     parser.add_argument('--gpu', default='0', help='GPU ID number(s), comma-separated (default: 0)')
@@ -297,7 +537,7 @@ if __name__ == "__main__":
                         help='list of unet decorder filters (default: 32 32 32 32 32 16 16)')
     parser.add_argument('--int-steps', type=int, default=7,
                         help='number of integration steps (default: 7)')
-    parser.add_argument('--int-downsize', type=int, default=2,
+    parser.add_argument('--int-downsize', type=int, default=1,
                         help='flow downsample factor for integration (default: 2)')
     parser.add_argument('--bidir', action='store_true', help='enable bidirectional cost function')
 
@@ -308,7 +548,7 @@ if __name__ == "__main__":
                         help='weight of deformation loss (default: 0.01)')
     # parse configs
     args = parser.parse_args()
-    # print(f"Config: {args}")
+    print(f"Config: {args}")
 
     # device handling
     gpus = args.gpu.split(',')
@@ -320,32 +560,26 @@ if __name__ == "__main__":
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
-    torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = True
 
     # prepare model folder
     model_dir = args.model_dir
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    checkpoint_dir = os.path.join(model_dir, "VoxelMorph_LPBA_seg_"+curr_time)
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_LPBA_seg_" + curr_time)
+    args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
+    os.makedirs(args.sample_dir, exist_ok=True)
 
     # Logger
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(checkpoint_dir, "train.log"))
+    file_handler = logging.FileHandler(os.path.join(args.checkpoint_dir, "train.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
     logger.info(f"Config: {args}")
 
-    train(args, logger, device, checkpoint_dir)
-    
-    
-    
-    
-
-
+    train(args, logger, device)

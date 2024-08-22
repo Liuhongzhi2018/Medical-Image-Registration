@@ -326,7 +326,7 @@ def register(model, epoch, logger, args):
     # print(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
     logger.info(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
     
-    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre
+    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, moved_seg
 
 
 def train(args, logger, device):
@@ -433,11 +433,14 @@ def train(args, logger, device):
     weights += [args.weight]
     
     best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    moved_seg_log = 0
     # training loops
     for epoch in range(args.initial_epoch, args.epochs):
+
         epoch_loss = []
         epoch_total_loss = []
         epoch_step_time = []
+        
         model.train()
         for step in range(args.steps_per_epoch):
 
@@ -464,6 +467,7 @@ def train(args, logger, device):
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
+                
             # print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
 
             epoch_loss.append(loss_list)
@@ -487,39 +491,59 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 1 == 0:
-            with torch.no_grad():
-                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
+        # if epoch % 1 == 0:
+        #     with torch.no_grad():
+        #         cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
                     
-            # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
-            if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
-                best_epoch = epoch
-                best_avg_Dice = cur_avg_dice
-                best_avg_HD95 = cur_avg_hd95
-                best_avg_iou = cur_avg_iou
-                best_avg_tre = cur_meanTre
-                model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
-                # print(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
-                logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+        #     # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
+        #     if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
+        #         best_epoch = epoch
+        #         best_avg_Dice = cur_avg_dice
+        #         best_avg_HD95 = cur_avg_hd95
+        #         best_avg_iou = cur_avg_iou
+        #         best_avg_tre = cur_meanTre
+        #         model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
+        #         logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
                 
+        #     print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+        #     logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+
+        #     model.save(os.path.join(args.checkpoint_dir, '%04d.pt' % epoch))
+        #     logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pt' % epoch)}")
+
+        cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, moved_seg = register(model, epoch, logger, args)
+        if epoch < 2:
+            moved_seg_log = moved_seg
+        else:
+            print(f"*** training : {moved_seg_log - moved_seg}")        
+        # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
+        if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
+            best_epoch = epoch
+            best_avg_Dice = cur_avg_dice
+            best_avg_HD95 = cur_avg_hd95
+            best_avg_iou = cur_avg_iou
+            best_avg_tre = cur_meanTre
+            model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
+            logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+            
+        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+
+        model.save(os.path.join(args.checkpoint_dir, '%04d.pt' % epoch))
+        logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pt' % epoch)}")
+
         for f in os.listdir(args.sample_dir):
             if "ep" + str(best_epoch) in f: continue
             else:
                 os.remove(os.path.join(args.sample_dir, f))
-                # print(f"remove samples without < epoch {best_epoch} >")
+                print(f"remove samples without < epoch {best_epoch} >")
                 
         for f in os.listdir(args.checkpoint_dir):
-            if '%04d.pth' % best_epoch in f or 'log' in f or 'best' in f: continue
-            if not os.path.isdir(os.path.join(args.checkpoint_dir, f)):
-                os.remove(os.path.join(args.checkpoint_dir, f))
-            # print(f"remove pth without < epoch {best_epoch} >")
-            
-        model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
-        logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
-
-        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
-        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
-  
+            if '%04d.pt' % epoch in f or 'log' in f: continue
+            else:
+                os.remove(os.path.join(args.checkpoint_dir, f)) if not os.path.isdir(os.path.join(args.checkpoint_dir, f)) else None
+                print(f"remove *.pth without < epoch {best_epoch} >")
+                    
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
     model.save(os.path.join(args.checkpoint_dir, 'final.pth'))

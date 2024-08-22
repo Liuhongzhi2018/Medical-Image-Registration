@@ -59,6 +59,11 @@ python ./scripts/torch/train_semisupervised_LPBA.py --img-list ./images/LPBA/tra
 
 python ./scripts/torch/train_semisupervised_ACDC.py --img-list ./images/ACDC/train_img_list.txt --seg-list ./images/ACDC/train_seg_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 2
 
+python ./scripts/torch/train_semisupervised_ACDC.py --img-list ./images/ACDC/train_img_list.txt --seg-list ./images/ACDC/train_seg_list.txt --test-txt-path ./images/ACDC/test_img_seg_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 2
+
+python ./scripts/torch/train_semisupervised_LPBA.py --img-list ./images/LPBA/train_imgpairs_list.txt --seg-list ./images/LPBA/train_segpairs_list.txt --test-txt-path ./images/LPBA/test_img_seg_list.txt --model-dir /mnt/lhz/Github/Image_registration/voxelmorph_checkpoints --gpu 1
+
+
 ```
 
 
