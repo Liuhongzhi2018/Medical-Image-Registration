@@ -124,9 +124,9 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     dfm_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (dfm_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
-        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
-        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
         dfm_pos[i - 1, 0] = xc
         dfm_pos[i - 1, 1] = yc
         dfm_pos[i - 1, 2] = zc
@@ -134,23 +134,15 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     fx_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (fx_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
-        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
-        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
         fx_pos[i - 1, 0] = xc
         fx_pos[i - 1, 1] = yc
         fx_pos[i - 1, 2] = zc
 
     dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
     return dfm_fx_error
-
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:127: RuntimeWarning: invalid value encountered in scalar divide
-#   xc = np.sum(label * xv) / np.sum(label)
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:128: RuntimeWarning: invalid value encountered in scalar divide
-#   yc = np.sum(label * yv) / np.sum(label)
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:129: RuntimeWarning: invalid value encountered in scalar divide
-#   zc = np.sum(label * zv) / np.sum(label)
-
 
 def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     n_dice_list = []
@@ -163,9 +155,8 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
         ngt_data[gt == c] = 1
         npred_data = np.zeros_like(pre)
         npred_data[pre == c] = 1
-        if np.count_nonzero(npred_data) == 0: npred_data = np.ones_like(pre)
         n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
-        n_hd95 = hd95(npred_data, ngt_data, voxelspacing = gtspacing[::-1])
+        n_hd95 = hd95(ngt_data, npred_data, voxelspacing = gtspacing[::-1])
         n_iou = iou(npred_data, ngt_data)
         n_dice_list.append(n_dice)
         n_hd95_list.append(n_hd95)
@@ -174,8 +165,7 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     mean_HD95 = statistics.mean(n_hd95_list)
     mean_iou = statistics.mean(n_iou_list)
     
-    # tre = calc_TRE(ngt_data, npred_data)
-    tre = calc_TRE(gt, pre)
+    tre = calc_TRE(ngt_data, npred_data)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 def register(model, epoch, logger, args):
@@ -184,7 +174,11 @@ def register(model, epoch, logger, args):
     
     inshape = (192, 192, 192)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
-    mdice_list, mhd95_list, mIOU_list, tre_list = [], [], [], []
+    
+    dice_RV_list, dice_Myo_list, dice_LV_list = [], [], []
+    hd95_RV_list, hd95_Myo_list, hd95_LV_list = [], [], []
+    iou_RV_list, iou_Myo_list, iou_LV_list = [], [], []
+    tre_list = []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
@@ -192,7 +186,11 @@ def register(model, epoch, logger, args):
         warped_img = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
         warped_seg = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
         warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
-      
+        # print(f"moving_img: {moving_img} moving_seg: {moving_seg} fixed_img: {fixed_img} fixed_seg: {fixed_seg}")
+        # print(f"warped_img: {warped_img} warped_seg: {warped_seg}")
+        # moving_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10.nii.gz moving_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10_gt.nii.gz fixed_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01.nii.gz fixed_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01_gt.nii.gz
+        # warped_img: patient107_img_warped_ep0_.nii.gz warped_seg: patient107_seg_warped_ep0_.nii.gz
+        
         moving = vxm.py.utils.load_volfile(moving_img,
                                             np_var='vol',
                                             add_batch_axis=True, 
@@ -213,7 +211,7 @@ def register(model, epoch, logger, args):
                                                 np_var='seg',
                                                 add_batch_axis=True, 
                                                 add_feat_axis=add_feat_axis)
-
+        
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
         # semisupervised_pairs labels: [0 1 2 3]
@@ -298,23 +296,38 @@ def register(model, epoch, logger, args):
         
         # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
         tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
-
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-        
-        mdice_list.append(mdice)
-        mhd95_list.append(mhd95)
-        mIOU_list.append(mIOU)
+        dice_RV_list.append(dice_list[0])
+        dice_Myo_list.append(dice_list[1])
+        dice_LV_list.append(dice_list[2])
+        hd95_RV_list.append(hd95_list[0])
+        hd95_Myo_list.append(hd95_list[1])
+        hd95_LV_list.append(hd95_list[2])
+        iou_RV_list.append(IOU_list[0])
+        iou_Myo_list.append(IOU_list[1])
+        iou_LV_list.append(IOU_list[2])
         tre_list.append(tre)
         
-    print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-    cur_avgdice, cur_avghd95, cur_avgiou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-    cur_meanTre = np.mean(tre_list)
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {dice_list}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {hd95_list}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {IOU_list}")
+
+    cur_RV_avgdice, cur_Myo_avgdice, cur_LV_avgdice = statistics.mean(dice_RV_list), statistics.mean(dice_Myo_list), statistics.mean(dice_LV_list)
+    cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95 = statistics.mean(hd95_RV_list), statistics.mean(hd95_Myo_list), statistics.mean(hd95_LV_list)
+    cur_RV_iou, cur_Myo_iou, cur_LV_iou = statistics.mean(iou_RV_list), statistics.mean(iou_Myo_list), statistics.mean(iou_LV_list)
+    cur_avg_dice = np.average([cur_RV_avgdice, cur_Myo_avgdice, cur_LV_avgdice])
+    cur_avg_hd95 = np.average([cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95])
+    cur_avg_iou = np.average([cur_RV_iou, cur_Myo_iou, cur_LV_iou])
+    cur_meanTre = statistics.mean(tre_list)
     
-    logger.info(f"Epoch: {epoch} - avgDice: {cur_avgdice} avgHD95: {cur_avghd95} avgIOU: {cur_avgiou} avgTRE: {cur_meanTre}")
+    # print(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
+    logger.info(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
+    # print(f"Epoch: {epoch} HD95 - RV: {cur_RV_avghd95} Myo: {cur_Myo_avghd95} LV: {cur_LV_avghd95} ")
+    logger.info(f"Epoch: {epoch} HD95 - RV: {cur_RV_avghd95} Myo: {cur_Myo_avghd95} LV: {cur_LV_avghd95} ")
+    # print(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
+    logger.info(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
     
-    return cur_avgdice, cur_avghd95, cur_avgiou, cur_meanTre
+    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre
+
 
 def train(args, logger, device):
     bidir = args.bidir
@@ -452,8 +465,7 @@ def train(args, logger, device):
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
             # print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-            logger.info(f"Training epoch: {epoch} -- step: {step}/{args.steps_per_epoch} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-            
+
             epoch_loss.append(loss_list)
             epoch_total_loss.append(loss.item())
 
@@ -475,7 +487,7 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 20 == 0:
+        if epoch % 1 == 0:
             with torch.no_grad():
                 cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
                     
@@ -511,22 +523,6 @@ def train(args, logger, device):
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
     model.save(os.path.join(args.checkpoint_dir, 'final.pth'))
-    
-'''
-        if epoch % 5 == 0:
-            model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
-            logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
-        
-    with torch.no_grad():
-        epoch = args.epochs
-        final_avg_dice, final_avg_hd95, final_avg_iou, final_meanTre = register(model, epoch, logger, args)
-    
-    print(f"Final Dice {final_avg_dice} HD95 {final_avg_hd95} IOU {final_avg_iou} ")
-    logger.info(f"Final Current Dice {final_avg_dice} HD95 {final_avg_hd95} IOU {final_avg_iou} ")
-  
-    # final model save
-    model.save(os.path.join(args.checkpoint_dir, 'final.pth'))
-'''
 
 
 if __name__ == "__main__":
@@ -553,7 +549,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size', type=int, default=1, help='batch size (default: 1)')
     parser.add_argument('--epochs', type=int, default=1500,
                         help='number of training epochs (default: 1500)')
-    parser.add_argument('--steps-per-epoch', type=int, default=50,
+    parser.add_argument('--steps-per-epoch', type=int, default=100,
                         help='frequency of model saves (default: 100)')
     parser.add_argument('--load-model', help='optional model file to initialize with')
     parser.add_argument('--initial-epoch', type=int, default=0,
@@ -598,7 +594,7 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_LPBA_seg_" + curr_time)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_ACDC_seg_" + curr_time)
     args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.sample_dir, exist_ok=True)

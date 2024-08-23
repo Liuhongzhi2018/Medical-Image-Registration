@@ -487,7 +487,7 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 1 == 0:
+        if epoch % 20 == 0:
             with torch.no_grad():
                 cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
                     
