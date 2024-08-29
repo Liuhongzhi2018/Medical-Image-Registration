@@ -46,8 +46,6 @@ import time
 import logging
 import SimpleITK as sitk
 import statistics
-# import pystrum.pynd.ndutils as nd
-import scipy
 from scipy.ndimage import _ni_support
 from scipy.ndimage.morphology import distance_transform_edt, \
                                      binary_erosion,\
@@ -72,103 +70,6 @@ def split_seg(seg, labels):
     # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
     return prob_seg
 
-# https://github.com/JHU-MedImage-Reg/LUMIR_L2R//L2R_LUMIR_Eval/utils.py
-# https://github.com/junyuchen245/TransMorph_Transformer_for_Medical_Image_Registration/OASIS/evaluation.py
-# non-positive Jacobian determinant (%|J| ≤ 0) and the non-diffeomorphic volume (%NDV)
-# non-positive Jacobian determinant (\(|J_{\phi }| \le 0\))
-# def jacobian_determinant_vxm(disp):
-#     """
-#     jacobian determinant of a displacement field.
-#     NB: to compute the spatial gradients, we use np.gradient.
-#     Parameters:
-#         disp: 2D or 3D displacement field of size [*vol_shape, nb_dims],
-#               where vol_shape is of len nb_dims
-#     Returns:
-#         jacobian determinant (scalar)
-#     """
-
-#     # check inputs
-#     disp = disp.transpose(1, 2, 3, 0)
-#     volshape = disp.shape[:-1]
-#     nb_dims = len(volshape)
-#     assert len(volshape) in (2, 3), 'flow has to be 2D or 3D'
-
-#     # compute grid
-#     grid_lst = nd.volsize2ndgrid(volshape)
-#     grid = np.stack(grid_lst, len(volshape))
-
-#     # compute gradients
-#     J = np.gradient(disp + grid)
-
-#     # 3D glow
-#     if nb_dims == 3:
-#         dx = J[0]
-#         dy = J[1]
-#         dz = J[2]
-
-#         # compute jacobian components
-#         Jdet0 = dx[..., 0] * (dy[..., 1] * dz[..., 2] - dy[..., 2] * dz[..., 1])
-#         Jdet1 = dx[..., 1] * (dy[..., 0] * dz[..., 2] - dy[..., 2] * dz[..., 0])
-#         Jdet2 = dx[..., 2] * (dy[..., 0] * dz[..., 1] - dy[..., 1] * dz[..., 0])
-
-#         return Jdet0 - Jdet1 + Jdet2
-
-#     else:  # must be 2
-
-#         dfdx = J[0]
-#         dfdy = J[1]
-
-#         return dfdx[..., 0] * dfdy[..., 1] - dfdy[..., 0] * dfdx[..., 1]
-
-# https://github.com/junyuchen245/TransMorph_Transformer_for_Medical_Image_Registration/Baseline_registration_models/VoxelMorph/infer.py
-def jacobian_determinant(disp):
-    disp = np.expand_dims(disp.transpose(3, 2, 1, 0), 0)
-    # print(f"jacobian_determinant disp: {disp.shape}")
-    # jacobian_determinant disp: (1, 3, 214, 256, 9)
-    _, _, H, W, D = disp.shape
-    disp_one = disp[0][0]
-    
-    gradx  = np.array([-0.5, 0, 0.5]).reshape(1, 3, 1, 1)
-    grady  = np.array([-0.5, 0, 0.5]).reshape(1, 1, 3, 1)
-    gradz  = np.array([-0.5, 0, 0.5]).reshape(1, 1, 1, 3)
-
-    gradx_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], gradx, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], gradx, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], gradx, mode='constant', cval=0.0)], axis=1)
-    
-    grady_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], grady, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], grady, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], grady, mode='constant', cval=0.0)], axis=1)
-    
-    gradz_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], gradz, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], gradz, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], gradz, mode='constant', cval=0.0)], axis=1)
-
-    grad_disp = np.concatenate([gradx_disp, grady_disp, gradz_disp], 0)
-
-    jacobian = grad_disp + np.eye(3, 3).reshape(3, 3, 1, 1, 1)
-    jacobian = jacobian[:, :, 2:-2, 2:-2, 2:-2]
-    jacdet = jacobian[0, 0, :, :, :] * (jacobian[1, 1, :, :, :] * jacobian[2, 2, :, :, :] - jacobian[1, 2, :, :, :] * jacobian[2, 1, :, :, :]) -\
-             jacobian[1, 0, :, :, :] * (jacobian[0, 1, :, :, :] * jacobian[2, 2, :, :, :] - jacobian[0, 2, :, :, :] * jacobian[2, 1, :, :, :]) +\
-             jacobian[2, 0, :, :, :] * (jacobian[0, 1, :, :, :] * jacobian[1, 2, :, :, :] - jacobian[0, 2, :, :, :] * jacobian[1, 1, :, :, :])
-    # return jacdet
-    nonpjacdet = np.sum(jacdet <= 0)/np.prod(disp_one.shape)
-    return nonpjacdet
-
-# https://docs.monai.io/en/stable/metrics.html
-# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
-def Dice(pred, gt):
-    # intersection = np.logical_and(gt, pred)
-    # union = np.logical_or(gt, pred)
-    # dice = 2 * (intersection + smooth)/(mask_sum + smooth)
-    smooth = 0.001
-    intersection = np.logical_and(pred, gt)
-    mask_sum =  np.sum(np.abs(pred)) + np.sum(np.abs(gt))
-    # dice = 2.0 * torch.sum(torch.masked_select(y, y_pred))) / (y_o + torch.sum(y_pred))
-    dice = 2.0 * (np.sum(intersection) + smooth) / (mask_sum + smooth)
-    return dice
-
-# https://github.com/OldaKodym/evaluation_metrics/blob/master/metrics.py
 def __surface_distances(result, reference, voxelspacing=None, connectivity=1):
     """
     The distances between the surface voxel of binary objects in result and their
@@ -213,35 +114,19 @@ def iou(pred, gt, classes=1):
     iou = np.sum(intersection) / np.sum(union)
     return iou
 
-# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
-def IOU(pred, gt, classes=1):
-    '''
-    Intersection over Union (IoU) and Jaccard coefficients (or indices)
-    The Jaccard index is also known as Intersection over Union (IoU)
-    '''
-    smooth = 0.001
-    intersection = np.logical_and(gt, pred)
-    union = np.logical_or(gt, pred)
-    iou = (np.sum(intersection) + smooth) / (np.sum(union) + smooth)
-    return iou
-
-# https://github.com/JHU-MedImage-Reg/LUMIR_L2R/blob/ecfd6f368e9c8e64417120ddbe06562054757a89/L2R_LUMIR_Eval/utils.py
 def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
-    '''
-    Target Registration Error (TRE)
-    '''
     x = np.linspace(0, fx_lms.shape[0] - 1, fx_lms.shape[0])
     y = np.linspace(0, fx_lms.shape[1] - 1, fx_lms.shape[1])
     z = np.linspace(0, fx_lms.shape[2] - 1, fx_lms.shape[2])
     yv, xv, zv = np.meshgrid(y, x, z)
     unique = np.unique(fx_lms)
-    smooth = 0.001
+
     dfm_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (dfm_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + smooth)
-        yc = np.sum(label * yv) / (np.sum(label) + smooth)
-        zc = np.sum(label * zv) / (np.sum(label) + smooth)
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
         dfm_pos[i - 1, 0] = xc
         dfm_pos[i - 1, 1] = yc
         dfm_pos[i - 1, 2] = zc
@@ -249,15 +134,14 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     fx_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (fx_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + smooth)
-        yc = np.sum(label * yv) / (np.sum(label) + smooth)
-        zc = np.sum(label * zv) / (np.sum(label) + smooth)
+        xc = np.sum(label * xv) / np.sum(label)
+        yc = np.sum(label * yv) / np.sum(label)
+        zc = np.sum(label * zv) / np.sum(label)
         fx_pos[i - 1, 0] = xc
         fx_pos[i - 1, 1] = yc
         fx_pos[i - 1, 2] = zc
 
     dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
-    # print(('landmark error (vox): after {}'.format(dfm_fx_error)))
     return dfm_fx_error
 
 def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
@@ -271,10 +155,9 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
         ngt_data[gt == c] = 1
         npred_data = np.zeros_like(pre)
         npred_data[pre == c] = 1
-        # n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
-        n_dice = Dice(npred_data, ngt_data)
+        n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
         n_hd95 = hd95(ngt_data, npred_data, voxelspacing = gtspacing[::-1])
-        n_iou = IOU(npred_data, ngt_data)
+        n_iou = iou(npred_data, ngt_data)
         n_dice_list.append(n_dice)
         n_hd95_list.append(n_hd95)
         n_iou_list.append(n_iou)
@@ -295,14 +178,14 @@ def register(model, epoch, logger, args):
     dice_RV_list, dice_Myo_list, dice_LV_list = [], [], []
     hd95_RV_list, hd95_Myo_list, hd95_LV_list = [], [], []
     iou_RV_list, iou_Myo_list, iou_LV_list = [], [], []
-    tre_list, jd_list = [], []
+    tre_list = []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
         moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
         warped_img = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
         warped_seg = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
-        warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_flow' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
         # print(f"moving_img: {moving_img} moving_seg: {moving_seg} fixed_img: {fixed_img} fixed_seg: {fixed_seg}")
         # print(f"warped_img: {warped_img} warped_seg: {warped_seg}")
         # moving_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10.nii.gz moving_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10_gt.nii.gz fixed_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01.nii.gz fixed_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01_gt.nii.gz
@@ -413,7 +296,6 @@ def register(model, epoch, logger, args):
         
         # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
         tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
-        jd = jacobian_determinant(deform)
         dice_RV_list.append(dice_list[0])
         dice_Myo_list.append(dice_list[1])
         dice_LV_list.append(dice_list[2])
@@ -424,12 +306,10 @@ def register(model, epoch, logger, args):
         iou_Myo_list.append(IOU_list[1])
         iou_LV_list.append(IOU_list[2])
         tre_list.append(tre)
-        jd_list.append(jd)
         
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {dice_list}")
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {hd95_list}")
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {IOU_list}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} jacobian_determinant - {jd}")
 
     cur_RV_avgdice, cur_Myo_avgdice, cur_LV_avgdice = statistics.mean(dice_RV_list), statistics.mean(dice_Myo_list), statistics.mean(dice_LV_list)
     cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95 = statistics.mean(hd95_RV_list), statistics.mean(hd95_Myo_list), statistics.mean(hd95_LV_list)
@@ -438,7 +318,6 @@ def register(model, epoch, logger, args):
     cur_avg_hd95 = np.average([cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95])
     cur_avg_iou = np.average([cur_RV_iou, cur_Myo_iou, cur_LV_iou])
     cur_meanTre = statistics.mean(tre_list)
-    cur_jd = statistics.mean(jd_list)
     
     # print(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
     logger.info(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
@@ -447,7 +326,7 @@ def register(model, epoch, logger, args):
     # print(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
     logger.info(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
     
-    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_jd
+    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre
 
 
 def train(args, logger, device):
@@ -579,7 +458,7 @@ def train(args, logger, device):
             loss = 0
             loss_list = []
             for n, loss_function in enumerate(losses):
-                # print(f"n: {n}  y_true: {y_true[n].shape} y_pred: {y_pred[n].shape}")
+                print(f"n: {n}  y_true: {y_true[n].shape} y_pred: {y_pred[n].shape}")
                 # n: 0  y_true: torch.Size([1, 1, 160, 192, 224]) y_pred: torch.Size([1, 1, 160, 192, 224])
                 # n: 1  y_true: torch.Size([1, 3, 160, 192, 224]) y_pred: torch.Size([1, 3, 80, 96, 112])
                 # n: 2  y_true: torch.Size([1, 4, 160, 192, 22  4]) y_pred: torch.Size([1, 4, 160, 192, 224])
@@ -609,9 +488,9 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 5 == 0:
+        if epoch % 1 == 0:
             with torch.no_grad():
-                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_jd = register(model, epoch, logger, args)
+                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
                     
             # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
             if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
@@ -639,8 +518,8 @@ def train(args, logger, device):
         model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
         logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
 
-        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} JD {cur_jd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
-        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} JD {cur_jd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
+        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
+        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} Best_Tre {best_avg_tre} at epoch {best_epoch}")
   
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
@@ -687,7 +566,7 @@ if __name__ == "__main__":
                         help='list of unet decorder filters (default: 32 32 32 32 32 16 16)')
     parser.add_argument('--int-steps', type=int, default=7,
                         help='number of integration steps (default: 7)')
-    parser.add_argument('--int-downsize', type=int, default=2,
+    parser.add_argument('--int-downsize', type=int, default=1,
                         help='flow downsample factor for integration (default: 2)')
     parser.add_argument('--bidir', action='store_true', help='enable bidirectional cost function')
 
@@ -716,7 +595,7 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_ACDC_" + curr_time)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_ACDC_seg_" + curr_time)
     args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.sample_dir, exist_ok=True)

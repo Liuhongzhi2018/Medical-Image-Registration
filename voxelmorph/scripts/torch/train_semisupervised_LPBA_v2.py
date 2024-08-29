@@ -124,9 +124,9 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     dfm_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (dfm_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / np.sum(label)
-        yc = np.sum(label * yv) / np.sum(label)
-        zc = np.sum(label * zv) / np.sum(label)
+        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
+        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
+        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
         dfm_pos[i - 1, 0] = xc
         dfm_pos[i - 1, 1] = yc
         dfm_pos[i - 1, 2] = zc
@@ -134,15 +134,23 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     fx_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (fx_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / np.sum(label)
-        yc = np.sum(label * yv) / np.sum(label)
-        zc = np.sum(label * zv) / np.sum(label)
+        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
+        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
+        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
         fx_pos[i - 1, 0] = xc
         fx_pos[i - 1, 1] = yc
         fx_pos[i - 1, 2] = zc
 
     dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
     return dfm_fx_error
+
+# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:127: RuntimeWarning: invalid value encountered in scalar divide
+#   xc = np.sum(label * xv) / np.sum(label)
+# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:128: RuntimeWarning: invalid value encountered in scalar divide
+#   yc = np.sum(label * yv) / np.sum(label)
+# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:129: RuntimeWarning: invalid value encountered in scalar divide
+#   zc = np.sum(label * zv) / np.sum(label)
+
 
 def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     n_dice_list = []
@@ -155,8 +163,9 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
         ngt_data[gt == c] = 1
         npred_data = np.zeros_like(pre)
         npred_data[pre == c] = 1
+        if np.count_nonzero(npred_data) == 0: npred_data = np.ones_like(pre)
         n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
-        n_hd95 = hd95(ngt_data, npred_data, voxelspacing = gtspacing[::-1])
+        n_hd95 = hd95(npred_data, ngt_data, voxelspacing = gtspacing[::-1])
         n_iou = iou(npred_data, ngt_data)
         n_dice_list.append(n_dice)
         n_hd95_list.append(n_hd95)
@@ -165,7 +174,8 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     mean_HD95 = statistics.mean(n_hd95_list)
     mean_iou = statistics.mean(n_iou_list)
     
-    tre = calc_TRE(ngt_data, npred_data)
+    # tre = calc_TRE(ngt_data, npred_data)
+    tre = calc_TRE(gt, pre)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 def register(model, epoch, logger, args):
@@ -174,7 +184,7 @@ def register(model, epoch, logger, args):
     
     inshape = (192, 192, 192)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
-    
+    mdice_list, mhd95_list, mIOU_list, tre_list = [], [], [], []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
@@ -203,7 +213,7 @@ def register(model, epoch, logger, args):
                                                 np_var='seg',
                                                 add_batch_axis=True, 
                                                 add_feat_axis=add_feat_axis)
-        
+
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
         # semisupervised_pairs labels: [0 1 2 3]
@@ -288,18 +298,23 @@ def register(model, epoch, logger, args):
         
         # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
         tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
-        
+
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
         logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-
-    cur_avgdice, cur_avghd95, cur_avgiou = statistics.mean(dice_list), statistics.mean(hd95_list), statistics.mean(IOU_list)
-    cur_meanTre = statistics.mean(tre_list)
+        
+        mdice_list.append(mdice)
+        mhd95_list.append(mhd95)
+        mIOU_list.append(mIOU)
+        tre_list.append(tre)
+        
+    print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
+    cur_avgdice, cur_avghd95, cur_avgiou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
+    cur_meanTre = np.mean(tre_list)
     
     logger.info(f"Epoch: {epoch} - avgDice: {cur_avgdice} avgHD95: {cur_avghd95} avgIOU: {cur_avgiou} avgTRE: {cur_meanTre}")
     
-    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre
-
+    return cur_avgdice, cur_avghd95, cur_avgiou, cur_meanTre
 
 def train(args, logger, device):
     bidir = args.bidir
@@ -436,8 +451,9 @@ def train(args, logger, device):
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
-            print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-
+            # print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
+            logger.info(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
+            
             epoch_loss.append(loss_list)
             epoch_total_loss.append(loss.item())
 
@@ -459,7 +475,7 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 1 == 0:
+        if epoch % 5 == 0:
             with torch.no_grad():
                 cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre = register(model, epoch, logger, args)
                     
@@ -521,7 +537,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size', type=int, default=1, help='batch size (default: 1)')
     parser.add_argument('--epochs', type=int, default=1500,
                         help='number of training epochs (default: 1500)')
-    parser.add_argument('--steps-per-epoch', type=int, default=100,
+    parser.add_argument('--steps-per-epoch', type=int, default=50,
                         help='frequency of model saves (default: 100)')
     parser.add_argument('--load-model', help='optional model file to initialize with')
     parser.add_argument('--initial-epoch', type=int, default=0,
