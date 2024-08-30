@@ -65,9 +65,13 @@ def read_files_txt(txt_path):
 
 # internal utility to generate downsampled prob seg from discrete seg
 def split_seg(seg, labels):
-    prob_seg = np.zeros((*seg.shape[:4], len(labels)))
+    # prob_seg = np.zeros((*seg.shape[:4], len(labels)))
+    prob_seg = np.zeros((*seg.shape[:4], labels.max()+1))
+    # print(f"split_seg prob_seg {prob_seg.shape}")
+    # split_seg prob_seg (1, 160, 192, 160, 183)
     for i, label in enumerate(labels):
-        prob_seg[0, ..., i] = seg[0, ..., 0] == label
+        # prob_seg[0, ..., i] = seg[0, ..., 0] == label
+        prob_seg[0, ..., label] = seg[0, ..., 0] == label
     # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
     return prob_seg
 
@@ -241,16 +245,17 @@ def register(model, epoch, logger, args):
     # load moving and fixed images
     add_feat_axis = not args.multichannel
     
-    inshape = (192, 192, 192)
+    # inshape = (192, 192, 192)
+    inshape = (160, 160, 160)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
     mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
         moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
-        warped_img = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
-        warped_seg = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
-        warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
+        warped_img = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
+        warped_seg = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
       
         moving = vxm.py.utils.load_volfile(moving_img,
                                             np_var='vol',
@@ -275,9 +280,15 @@ def register(model, epoch, logger, args):
 
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
-        # semisupervised_pairs labels: [0 1 2 3]
+        # semisupervised_pairs labels: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
+        # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
+        # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
+        # 166 181 182]
         src_seg = split_seg(moving_seg, labels)
         trg_seg = split_seg(fixed_seg, labels)
+        # print(f"semisupervised_pairs src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
+        # split_seg prob_seg (1, 160, 192, 160, 183)
+        # split_seg prob_seg (1, 160, 192, 160, 183)
         
         # print(f"register moving: {moving.shape} moving_seg: {moving_seg.shape}")
         # print(f"register fixed: {fixed.shape} fixed_seg: {fixed_seg.shape}")
@@ -427,7 +438,8 @@ def train(args, logger, device):
     # next(generator)[0][0]: (1, 216, 256, 8, 1)
     # inshape = next(generator)[0][0].shape[1:-1]
     # inshape = (160, 192, 224)
-    inshape = (192, 192, 192)
+    # inshape = (192, 192, 192)
+    inshape = (160, 160, 160)
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -541,7 +553,7 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 10 == 0:
+        if epoch % 20 == 0:
             with torch.no_grad():
                 cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_meanjd = register(model, epoch, logger, args)
                     
@@ -571,8 +583,8 @@ def train(args, logger, device):
         model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
         logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
 
-        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} IOU {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
-        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} IOU {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
+        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} nonpJD {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
+        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} nonpJD {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
   
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
