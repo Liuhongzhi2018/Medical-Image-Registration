@@ -241,18 +241,17 @@ def register(model, epoch, logger, args):
     # load moving and fixed images
     add_feat_axis = not args.multichannel
     
-    # inshape = (192, 160, 192)
-    # inshape = (160, 160, 160)
-    inshape = (96, 80, 96)
+    # inshape = (192, 160, 256)
+    inshape = (192, 192, 208)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
     mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
         moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
-        warped_img = moving_img.split('/')[-1][:16] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
-        warped_seg = moving_img.split('/')[-1][:16] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
-        warped_flow = moving_img.split('/')[-1][:16] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
+        warped_img = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
+        warped_seg = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
       
         moving = vxm.py.utils.load_volfile(moving_img,
                                             np_var='vol',
@@ -277,11 +276,11 @@ def register(model, epoch, logger, args):
 
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
-        # semisupervised_pairs labels: [0 1 2 3 4]
+        # semisupervised_pairs labels: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13]
         src_seg = split_seg(moving_seg, labels)
         trg_seg = split_seg(fixed_seg, labels)
         # print(f"semisupervised_pairs src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
-        # semisupervised_pairs src_seg: (1, 192, 160, 192, 5) trg_seg: (1, 192, 160, 192, 5)
+        # semisupervised_pairs src_seg: (1, 192, 160, 256, 14) trg_seg: (1, 192, 160, 256, 14)
         
         input_moving = torch.from_numpy(moving).to(device).float().permute(0, 4, 1, 2, 3)
         input_fixed = torch.from_numpy(fixed).to(device).float().permute(0, 4, 1, 2, 3)
@@ -419,11 +418,10 @@ def train(args, logger, device):
                                                         atlas_file=args.atlas)
 
     # extract shape from sampled input
-    # gen_shape = next(generator)[0][0].shape[1:-1]
-    # print(f"next(generator)[0][0]: {gen_shape}")
-    # next(generator)[0][0]: (192, 160, 192)
+    gen_shape = next(generator)[0][0].shape[1:-1]
+    print(f"next(generator)[0][0]: {gen_shape}")
+    # next(generator)[0][0]: (192, 192, 208)
     # gen_shape = (160, 160, 160)
-    gen_shape = (96, 80, 96)
     
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -642,7 +640,7 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_AbdomenMRCT_" + curr_time)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_LungCT_" + curr_time)
     args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.sample_dir, exist_ok=True)
