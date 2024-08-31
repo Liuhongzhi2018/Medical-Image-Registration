@@ -65,13 +65,9 @@ def read_files_txt(txt_path):
 
 # internal utility to generate downsampled prob seg from discrete seg
 def split_seg(seg, labels):
-    # prob_seg = np.zeros((*seg.shape[:4], len(labels)))
-    prob_seg = np.zeros((*seg.shape[:4], labels.max()+1))
-    # print(f"split_seg prob_seg {prob_seg.shape}")
-    # split_seg prob_seg (1, 160, 192, 160, 183)
+    prob_seg = np.zeros((*seg.shape[:4], len(labels)))
     for i, label in enumerate(labels):
-        # prob_seg[0, ..., i] = seg[0, ..., 0] == label
-        prob_seg[0, ..., label] = seg[0, ..., 0] == label
+        prob_seg[0, ..., i] = seg[0, ..., 0] == label
     # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
     return prob_seg
 
@@ -245,18 +241,17 @@ def register(model, epoch, logger, args):
     # load moving and fixed images
     add_feat_axis = not args.multichannel
     
-    # inshape = (192, 192, 192)
-    # inshape = (160, 160, 160)
-    inshape = (128, 128, 128)
+    # inshape = (192, 160, 256)
+    inshape = (160, 160, 160)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
     mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
         moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
-        warped_img = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
-        warped_seg = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
-        warped_flow = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
+        warped_img = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
+        warped_seg = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1][:16] + '_' + fixed_img.split('/')[-1][12:16] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
       
         moving = vxm.py.utils.load_volfile(moving_img,
                                             np_var='vol',
@@ -281,22 +276,11 @@ def register(model, epoch, logger, args):
 
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
-        # semisupervised_pairs labels: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
-        # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
-        # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
-        # 166 181 182]
+        # semisupervised_pairs labels: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13]
         src_seg = split_seg(moving_seg, labels)
         trg_seg = split_seg(fixed_seg, labels)
         # print(f"semisupervised_pairs src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
-        # split_seg prob_seg (1, 160, 192, 160, 183)
-        # split_seg prob_seg (1, 160, 192, 160, 183)
-        
-        # print(f"register moving: {moving.shape} moving_seg: {moving_seg.shape}")
-        # print(f"register fixed: {fixed.shape} fixed_seg: {fixed_seg.shape}")
-        # print(f"register src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
-        # register moving: (1, 256, 216, 9, 1) moving_seg: (1, 256, 216, 9, 1)
-        # register fixed: (1, 256, 216, 9, 1) fixed_seg: (1, 256, 216, 9, 1)
-        # register src_seg: (1, 256, 216, 9, 4) trg_seg: (1, 256, 216, 9, 4)
+        # semisupervised_pairs src_seg: (1, 192, 160, 256, 14) trg_seg: (1, 192, 160, 256, 14)
         
         input_moving = torch.from_numpy(moving).to(device).float().permute(0, 4, 1, 2, 3)
         input_fixed = torch.from_numpy(fixed).to(device).float().permute(0, 4, 1, 2, 3)
@@ -428,21 +412,17 @@ def train(args, logger, device):
     else:
         # scan-to-scan generator
         # /home/liuhongzhi/Method/Registration/voxelmorph/voxelmorph/generators.py
-        generator = vxm.generators.semisupervised_pairs(train_imgs, 
-                                                        train_segs, 
+        generator = vxm.generators.semisupervised_pairs(train_imgs,
+                                                        train_segs,
                                                         use_label=False,
                                                         atlas_file=args.atlas)
 
     # extract shape from sampled input
-    # inshape = next(generator)[0][0].shape[1:-1]
-    # print(f"next(generator)[0][0]: {next(generator)[0][0].shape}")
-    # next(generator)[0][0]: (1, 216, 256, 8, 1)
-    # inshape = next(generator)[0][0].shape[1:-1]
-    # inshape = (160, 192, 224)
-    # inshape = (192, 192, 192)
-    # inshape = (160, 160, 160)
-    inshape = (128, 128, 128)
-
+    # gen_shape = next(generator)[0][0].shape[1:-1]
+    # print(f"next(generator)[0][0]: {gen_shape}")
+    # next(generator)[0][0]: (192, 160, 256)
+    gen_shape = (160, 160, 160)
+    
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
 
@@ -456,7 +436,7 @@ def train(args, logger, device):
                                            device)
     else:
         # otherwise configure new model
-        model = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=inshape,
+        model = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=gen_shape,
                                                        nb_unet_features=[enc_nf, dec_nf],
                                                        bidir=bidir,
                                                        int_steps=args.int_steps,
@@ -514,8 +494,8 @@ def train(args, logger, device):
             inputs, y_true = next(generator)
             inputs = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in inputs]
             y_true = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in y_true]
-            inputs = [F.interpolate(d, size=inshape) for d in inputs]
-            y_true = [F.interpolate(d, size=inshape) for d in y_true]
+            inputs = [F.interpolate(d, size=gen_shape) for d in inputs]
+            y_true = [F.interpolate(d, size=gen_shape) for d in y_true]
 
             # run inputs through the model to produce a warped image and flow field
             y_pred = model(*inputs)
@@ -525,9 +505,7 @@ def train(args, logger, device):
             loss_list = []
             for n, loss_function in enumerate(losses):
                 # print(f"n: {n}  y_true: {y_true[n].shape} y_pred: {y_pred[n].shape}")
-                # n: 0  y_true: torch.Size([1, 1, 160, 192, 224]) y_pred: torch.Size([1, 1, 160, 192, 224])
-                # n: 1  y_true: torch.Size([1, 3, 160, 192, 224]) y_pred: torch.Size([1, 3, 80, 96, 112])
-                # n: 2  y_true: torch.Size([1, 4, 160, 192, 224]) y_pred: torch.Size([1, 4, 160, 192, 224])
+                # n: 0  y_true: torch.Size([1, 1, 160, 224, 192]) y_pred: torch.Size([1, 1, 160, 224, 192])
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
@@ -555,7 +533,7 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 20 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_meanjd = register(model, epoch, logger, args)
                     
@@ -662,7 +640,7 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_LPBA_" + curr_time)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_AbdomenCTCT_" + curr_time)
     args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.sample_dir, exist_ok=True)
