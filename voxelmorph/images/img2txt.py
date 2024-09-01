@@ -266,7 +266,50 @@ def ACTMR_img2txt(root_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_
                         seg_line = os.path.join(seg_dir, imgs_list[i]) + " " + os.path.join(seg_dir, imgs_list[j]) + "\n"
                         print(f"train seg {seg_line}")
                         f.write(seg_line)
+                        
+                        
+def OAIZIB_img2txt(root_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file):
+    trimg_dir = os.path.join(root_dir, "oai_zib_mri_train", "train")
+    # seg_dir = os.path.join(root_dir, "masksTr")
+    trseg_dir = os.path.join(root_dir, "oai_zib_labelmaps", "labelmaps", "train")
+    trimgs_list = os.listdir(trimg_dir)
+    # trimgs_list.sort()
+    print(trimgs_list)
     
+    for i in range(1, len(trimgs_list)):
+            with open(train_img_txt_file,'a') as f:
+                img_line = os.path.join(trimg_dir, trimgs_list[i]) + " " + os.path.join(trimg_dir, trimgs_list[i-1]) + "\n"
+                print(f"train images {img_line}")
+                f.write(img_line)
+            with open(train_seg_txt_file,'a') as f:
+                seg_line = os.path.join(trseg_dir, trimgs_list[i]) + " " + os.path.join(trseg_dir, trimgs_list[i-1]) + "\n"
+                print(f"train seg {seg_line}")
+                f.write(seg_line)
+                
+                
+    tsimg_dir = os.path.join(root_dir, "oai_zib_mri_test", "test")
+    # seg_dir = os.path.join(root_dir, "masksTr")
+    tsseg_dir = os.path.join(root_dir, "oai_zib_labelmaps", "labelmaps", "test")
+    tsimgs_list = os.listdir(tsimg_dir)
+    # trimgs_list.sort()
+    print(tsimgs_list)
+    
+    for i in range(1, len(tsimgs_list)):
+        with open(val_img_txt_file,'a') as f:
+            img_line = os.path.join(tsimg_dir, tsimgs_list[i]) + " " + os.path.join(tsimg_dir, tsimgs_list[i-1]) + "\n"
+            print(f"test images {img_line}")
+            f.write(img_line)
+        with open(val_seg_txt_file,'a') as f:
+            seg_line = os.path.join(tsseg_dir, tsimgs_list[i]) + " " + os.path.join(tsseg_dir, tsimgs_list[i-1]) + "\n"
+            print(f"test seg {seg_line}")
+            f.write(seg_line)
+        with open("/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/test_img_seg_list.txt",'a') as f:
+            mov_line = os.path.join(tsimg_dir, tsimgs_list[i]) + " " + os.path.join(tsseg_dir, tsimgs_list[i])
+            fix_line = os.path.join(tsimg_dir, tsimgs_list[i-1]) + " " + os.path.join(tsseg_dir, tsimgs_list[i-1])
+            line = mov_line + " " + fix_line + "\n"
+            print(f"test line {line}")
+            f.write(line)
+
                     
 if __name__ == "__main__":
     # json_file = "/home/liuhongzhi/Method/Registration/voxelmorph/images/ACDC/train.json"
@@ -274,15 +317,16 @@ if __name__ == "__main__":
     # img_dir = "/mnt/lhz/Datasets/Learn2reg/LPBA40"
     # txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/LPBA/test_img_seg_list.txt"
     # img_dir = "/mnt/lhz/Datasets/Learn2reg/OASIS"
-    img_dir = "/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT"
+    img_dir = "/mnt/lhz/Datasets/Learn2reg/OAI-ZIB"
     # img_dir = "/mnt/lhz/Datasets/Learn2reg/AbdomenCTCT"
-    train_img_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/AbdomenMRCT/CT2MR/train_allimg_list.txt"
-    train_seg_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/AbdomenMRCT/CT2MR/train_allseg_list.txt"
-    val_img_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/AbdomenMRCT/CT2MR/val_allimg_list.txt"
-    val_seg_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/AbdomenMRCT/CT2MR/val_allseg_list.txt"
-    test_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/AbdomenMRCT/CT2MR/test_allimg_allseg_list.txt"
+    train_img_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/train_img_list.txt"
+    train_seg_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/train_seg_list.txt"
+    val_img_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/val_img_list.txt"
+    val_seg_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/val_seg_list.txt"
+    test_txt_file = "/mnt/lhz/Github/Image_registration/voxelmorph/images/OAIZIB/test_img_seg_list.txt"
     # OASIS_img2txt1(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
     # OASIS_img2txt2(img_dir, test_txt_file)
     # OASIS_img2txt3(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
-    ACTMR_img2txt(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
+    # ACTMR_img2txt(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
     # ACTCT_img2txt(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
+    OAIZIB_img2txt(img_dir, train_img_txt_file, train_seg_txt_file, val_img_txt_file, val_seg_txt_file)
