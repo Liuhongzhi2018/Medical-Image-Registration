@@ -13,6 +13,8 @@
 base64编码方式如下，在命令行中输入
  ```
  echo "PASS" | base64
+
+ echo "307235" | base64
  ```
  其中PASS为你的密码，用输出结果替换第18行的**PASSWORD**
 
