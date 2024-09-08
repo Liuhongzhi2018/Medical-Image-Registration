@@ -1,0 +1,10 @@
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0021_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0021_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0022_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0022_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0023_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0023_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0024_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0024_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0025_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0025_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0026_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0026_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0027_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0027_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0028_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0028_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0029_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0029_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0030_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/LungCT/masksTs/LungCT_0030_0000.nii.gz

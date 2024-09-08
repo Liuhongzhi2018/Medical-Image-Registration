@@ -1,0 +1,2 @@
+/mnt/lhz/Datasets/Learn2reg/LPBA40/test/S09.delineation.skullstripped.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S09.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/test/S06.delineation.skullstripped.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S06.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/fixed.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
