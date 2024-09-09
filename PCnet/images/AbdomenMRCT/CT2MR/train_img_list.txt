@@ -1,0 +1,5 @@
+/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0001_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0001_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0002_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0002_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0003_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0003_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0004_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0004_0000.nii.gz
+/mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0005_0001.nii.gz /mnt/lhz/Datasets/Learn2reg/AbdomenMRCT/imagesTr/AbdomenMRCT_0005_0000.nii.gz
