@@ -402,13 +402,254 @@ def save_MAR_norm(fimg_dir, timg_dir, value_range):
         sitk.WriteImage(new_img_itk, new_img_path)
         print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
 
+
+def save_MAR_norm1(fimg_dir, timg_dir, value_range):
+    fimage_files = os.listdir(fimg_dir)
+    all_num = len(fimage_files)
+    MAR_threshold = value_range[1]  # +1000
+    # MAR_threshold = value_range[1] - 500 # +1000
+    # MAR_threshold = np.percentile(a, 90)
+    count = 0
+    for f in fimage_files:
+        count += 1
+        img_path = os.path.join(fimg_dir, f)
+        img_itk = sitk.ReadImage(img_path)
+        origin = img_itk.GetOrigin()
+        spacing = img_itk.GetSpacing()
+        direction = img_itk.GetDirection()
         
+        img_array = sitk.GetArrayFromImage(img_itk)
+        # print(f"{f} img size: {img_itk.GetSize()}")
+        # print(f"{f} img size: {img_itk.GetSize()} array shape: {img_array.shape}")
+        # 20220815.144447-2.nii.gz img size: (394, 394, 394) (WHD) array shape: (394, 394, 394) (DHW)
+        # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+        # img_array before mask: -1000 27173)
+        img_array_min = np.min(img_array)
+        img_array_max = np.max(img_array)
+        img_array_mean = np.mean(img_array)
+        
+        # deep copy from origin array
+        img_array_over0 = img_array.copy() 
+        img_array_over0[img_array_over0 < 0] = 0
+        img_array_meanover0 = np.mean(img_array_over0)
+        # print(f"img_array_min: {np.min(img_array)} img_array_max: {np.max(img_array)} img_array_meanover0: {img_array_meanover0}")
+        # img_array_min: -1000 img_array_max: 27173 img_array_meanover0: 31.85126410771587
+        
+        # norm to (0, 255)
+        img_array_uint8 = (img_array - img_array_min) / (img_array_max - img_array_min) * 255
+        MAR_threshold_uint8 = (MAR_threshold - img_array_min) / (img_array_max - img_array_min) * 255
+        
+        # MAR
+        # print(f"img_array shape: {img_array.shape} type: {img_array.dtype}")  # (Dz, Hy, Wx)
+        for i in range(img_array.shape[0]):
+            # img_slice = img_array[i, :, :]
+            img_uint8_slice = img_array_uint8[i, :, :]
+            # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+            img_array_slice = img_array[i, :, :]
+            # print(f"{f} {i} img_slice shape: {img_slice.shape} {img_slice.dtype} {MAR_threshold} {img_array_max}")
+            _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY)
+            # _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY_INV)
+            # kernel = np.ones((3, 3), np.uint8)
+            kernel = np.ones((5, 5), np.uint8)
+            # kernel = np.ones((10, 10), np.uint8)                                                                                                                                                                                                       
+            overmask = cv2.dilate(mask, kernel, iterations=2)
+            # print(f"img_slice shape: {img_slice.shape} overmask shape: {overmask.shape}")  # (Dz, Hy, Wx)
+            # img_slice shape: (394, 394) overmask shape: (394, 394)
+            # img_array[i, :, :] = cv2.inpaint(np.uint16(img_slice), overmask, 5, cv2.INPAINT_TELEA)  # cv2.INPAINT_NS
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask)
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + value_range[0] * overmask
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + img_array_mean * overmask
+            # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+            img_array[i, :, :] = img_array_slice * np.int32(1 - overmask)
+            # print(f"img_array with mask: {np.min(img_array)} {np.max(img_array)}) ")
+            # img_array with mask: -1000 27173)
+            
+        # norm
+        # new_img_array = value_range[0] + ((img_array - img_array_min) / (img_array_max - img_array_min)) * (value_range[1] - value_range[0])
+        
+        # clip
+        new_img_array = img_array
+        new_img_array[new_img_array > value_range[1]] = value_range[1]
+        new_img_array[new_img_array < value_range[0]] = value_range[0]
+        
+        new_img_array_min = np.min(new_img_array)
+        new_img_array_max = np.max(new_img_array)
+        
+        new_img_itk = sitk.GetImageFromArray(new_img_array)
+        new_img_itk.SetOrigin(origin)
+        new_img_itk.SetSpacing(spacing)
+        new_img_itk.SetDirection(direction)
+        new_img_path = os.path.join(timg_dir, f)
+        sitk.WriteImage(new_img_itk, new_img_path)
+        print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
+
+
+
+def save_MAR_norm_inpaint(fimg_dir, timg_dir, value_range):
+    fimage_files = os.listdir(fimg_dir)
+    all_num = len(fimage_files)
+    MAR_threshold = value_range[1]  # +1000
+    # MAR_threshold = value_range[1] - 500 # +1000
+    # MAR_threshold = np.percentile(a, 90)
+    count = 0
+    for f in fimage_files:
+        count += 1
+        img_path = os.path.join(fimg_dir, f)
+        img_itk = sitk.ReadImage(img_path)
+        origin = img_itk.GetOrigin()
+        spacing = img_itk.GetSpacing()
+        direction = img_itk.GetDirection()
+        
+        img_array = sitk.GetArrayFromImage(img_itk)
+        img_array_min = np.min(img_array)
+        img_array_max = np.max(img_array)
+        
+        img_array_uint8 = (img_array - img_array_min) / (img_array_max - img_array_min) * 255
+        MAR_threshold_uint8 = (MAR_threshold - img_array_min) / (img_array_max - img_array_min) * 255
+        
+        # MAR
+        # print(f"img_array shape: {img_array.shape} type: {img_array.dtype}")  # (Dz, Hy, Wx)
+        for i in range(img_array.shape[0]):
+            # img_slice = img_array[i, :, :]
+            img_uint8_slice = img_array_uint8[i, :, :]
+            img_array_slice = img_array[i, :, :]
+            # print(f"{f} {i} img_slice shape: {img_slice.shape} {img_slice.dtype} {MAR_threshold} {img_array_max}")
+            _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY)
+            # _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY_INV)
+            kernel = np.ones((3, 3), np.uint8)
+            # kernel = np.ones((5, 5), np.uint8)
+            # kernel = np.ones((10, 10), np.uint8)                                                                                                                                                                                                       
+            overmask = cv2.dilate(mask, kernel, iterations=1)
+            # print(f"img_slice shape: {img_slice.shape} overmask shape: {overmask.shape}")  # (Dz, Hy, Wx)
+            # img_slice shape: (394, 394) overmask shape: (394, 394)
+            # img_array[i, :, :] = cv2.inpaint(np.uint16(img_slice), overmask, 5, cv2.INPAINT_TELEA)  # cv2.INPAINT_NS
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask)
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + value_range[0] * overmask
+            img_array[i, :, :] = cv2.inpaint(np.uint16(img_array_slice), overmask, 3, cv2.INPAINT_TELEA)
+            
+        # norm
+        new_img_array = value_range[0] + ((img_array - img_array_min) / (img_array_max - img_array_min)) * (value_range[1] - value_range[0])
+        
+        # clip
+        # new_img_array = img_array
+        new_img_array[new_img_array > value_range[1]] = value_range[1]
+        new_img_array[new_img_array < value_range[0]] = value_range[0]
+        
+        new_img_array_min = np.min(new_img_array)
+        new_img_array_max = np.max(new_img_array)
+        
+        new_img_itk = sitk.GetImageFromArray(new_img_array)
+        new_img_itk.SetOrigin(origin)
+        new_img_itk.SetSpacing(spacing)
+        new_img_itk.SetDirection(direction)
+        new_img_path = os.path.join(timg_dir, f)
+        sitk.WriteImage(new_img_itk, new_img_path)
+        print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
+
+
+def filter_with_mask(imgarray, ker=3):
+    
+    # print(f"filter_with_mask: kernel {ker}")
+    newarray = cv2.blur(imgarray, (ker, ker))
+    # newarray = cv2.medianBlur(imgarray, ker) # Unsupported format
+    # newarray = cv2.GaussianBlur(imgarray, (ker, ker), 0)
+    # newarray = cv2.bilateralFilter(imgarray, 15, 150, 150)
+    
+    return newarray
+    
+def save_MAR_norm_filter(fimg_dir, timg_dir, value_range):
+    fimage_files = os.listdir(fimg_dir)
+    all_num = len(fimage_files)
+    MAR_threshold = value_range[1]  # +1000
+    # MAR_threshold = value_range[1] - 500 # +1000
+    # MAR_threshold = np.percentile(a, 90)
+    count = 0
+    for f in fimage_files:
+        count += 1
+        img_path = os.path.join(fimg_dir, f)
+        img_itk = sitk.ReadImage(img_path)
+        origin = img_itk.GetOrigin()
+        spacing = img_itk.GetSpacing()
+        direction = img_itk.GetDirection()
+        
+        img_array = sitk.GetArrayFromImage(img_itk)
+        # print(f"{f} img size: {img_itk.GetSize()}")
+        # print(f"{f} img size: {img_itk.GetSize()} array shape: {img_array.shape}")
+        # 20220815.144447-2.nii.gz img size: (394, 394, 394) (WHD) array shape: (394, 394, 394) (DHW)
+        # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+        # img_array before mask: -1000 27173)
+        img_array_min = np.min(img_array)
+        img_array_max = np.max(img_array)
+        img_array_mean = np.mean(img_array)
+        
+        # deep copy from origin array
+        img_array_over0 = img_array.copy() 
+        img_array_over0[img_array_over0 < 0] = 0
+        img_array_meanover0 = np.mean(img_array_over0)
+        # print(f"img_array_min: {np.min(img_array)} img_array_max: {np.max(img_array)} img_array_meanover0: {img_array_meanover0}")
+        # img_array_min: -1000 img_array_max: 27173 img_array_meanover0: 31.85126410771587
+        
+        # norm to (0, 255)
+        img_array_uint8 = (img_array - img_array_min) / (img_array_max - img_array_min) * 255
+        MAR_threshold_uint8 = (MAR_threshold - img_array_min) / (img_array_max - img_array_min) * 255
+        
+        # MAR
+        # print(f"img_array shape: {img_array.shape} type: {img_array.dtype}")  # (Dz, Hy, Wx)
+        for i in range(img_array.shape[0]):
+            # img_slice = img_array[i, :, :]
+            img_uint8_slice = img_array_uint8[i, :, :]
+            # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+            img_array_slice = img_array[i, :, :]
+            # print(f"{f} {i} img_slice shape: {img_slice.shape} {img_slice.dtype} {MAR_threshold} {img_array_max}")
+            _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY)
+            # _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY_INV)
+            # kernel = np.ones((3, 3), np.uint8)
+            kernel = np.ones((5, 5), np.uint8)
+            # kernel = np.ones((10, 10), np.uint8)                                                                                                                                                                                                       
+            overmask = cv2.dilate(mask, kernel, iterations=1)
+            # print(f"img_slice shape: {img_slice.shape} overmask shape: {overmask.shape}")  # (Dz, Hy, Wx)
+            # img_slice shape: (394, 394) overmask shape: (394, 394)
+            # img_array[i, :, :] = cv2.inpaint(np.uint16(img_slice), overmask, 5, cv2.INPAINT_TELEA)  # cv2.INPAINT_NS
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask)
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + value_range[0] * overmask
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + img_array_mean * overmask
+            # print(f"img_array before mask: {np.min(img_array)} {np.max(img_array)}) ")
+            # img_array[i, :, :] = img_array_slice * np.int32(1 - overmask)
+            img_array_slice_mask = img_array_slice * np.int32(1 - overmask)
+            # print(f"img_array with mask: {np.min(img_array)} {np.max(img_array)}) ")
+            # img_array with mask: -1000 27173)
+            
+            # filter image with mask
+            img_array_slice_mask = filter_with_mask(img_array_slice_mask, 5)
+            img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + img_array_slice_mask * np.int32(overmask)
+            
+        # norm
+        # new_img_array = value_range[0] + ((img_array - img_array_min) / (img_array_max - img_array_min)) * (value_range[1] - value_range[0])
+        
+        # clip
+        new_img_array = img_array
+        new_img_array[new_img_array > value_range[1]] = value_range[1]
+        new_img_array[new_img_array < value_range[0]] = value_range[0]
+        
+        new_img_array_min = np.min(new_img_array)
+        new_img_array_max = np.max(new_img_array)
+        
+        new_img_itk = sitk.GetImageFromArray(new_img_array)
+        new_img_itk.SetOrigin(origin)
+        new_img_itk.SetSpacing(spacing)
+        new_img_itk.SetDirection(direction)
+        new_img_path = os.path.join(timg_dir, f)
+        sitk.WriteImage(new_img_itk, new_img_path)
+        print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
+
+
 if __name__ == '__main__':
     
     refimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task02_12156deno-threelabel/imagesTs"
-    fimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task04_ankletest/imagesTs_origin"
+    # fimg_dir = r"/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v6_CBCT/NIFTI"
+    fimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs"
     # timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task04_ankletest/imagesTs_clip-10243071"
-    timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task04_ankletest/imagesTs_MAR_clip"
+    timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs_python_demetal-1"
     os.makedirs(timg_dir, exist_ok = True)
     
     # value_range = compute_range(refimg_dir)
@@ -417,6 +658,9 @@ if __name__ == '__main__':
     # compute_range: -1000 1564
     # compute_range: -1023 1928    average
     # save_norm(fimg_dir, timg_dir, value_range)
-    save_MAR_norm(fimg_dir, timg_dir, value_range)
+    # save_MAR_norm(fimg_dir, timg_dir, value_range)
+    # save_MAR_norm1(fimg_dir, timg_dir, value_range)
+    # save_MAR_norm_inpaint(fimg_dir, timg_dir, value_range)
+    save_MAR_norm_filter(fimg_dir, timg_dir, value_range)
     
  
