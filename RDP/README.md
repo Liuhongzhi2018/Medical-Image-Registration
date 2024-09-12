@@ -39,8 +39,6 @@ CUDA_VISIBLE_DEVICES=1 python train_LPBA.py
 
 CUDA_VISIBLE_DEVICES=0 python train_LPBA_v6.py
 
-/mnt/lhz/Datasets/Learn2reg/ACDC/training/patient013/patient013_frame14.nii.gz /mnt/lhz/Datasets/Learn2reg/ACDC/training/patient013/patient013_frame14_gt.nii.gz /mnt/lhz/Datasets/Learn2reg/ACDC/training/patient013/patient013_frame01.nii.gz /mnt/lhz/Datasets/Learn2reg/ACDC/training/patient013/patient013_frame01_gt.nii.gz
-
 CUDA_VISIBLE_DEVICES=1 python train_ACDC.py
 
 CUDA_VISIBLE_DEVICES=1 python train_OASIS.py
