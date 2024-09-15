@@ -26,7 +26,7 @@ def basename(p):
 if __name__ == '__main__':
 
     # path_originalData = '/mnt/lhz/Github/MedicalDetection/BrainFracSeg/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task06_Ankle21/'
-    path_originalData = '/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task04_ankletest/'
+    path_originalData = '/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/'
     # train_image = list_sort_nicely(glob.glob(path_originalData+"imagesTr/*"))
     # train_label = list_sort_nicely(glob.glob(path_originalData+"labelsTr/*"))
     # test_image = list_sort_nicely(glob.glob(path_originalData+"imagesTs/*"))
