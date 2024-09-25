@@ -643,13 +643,72 @@ def save_MAR_norm_filter(fimg_dir, timg_dir, value_range):
         print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
 
 
+
+def save_MAR_norm_fusion(fimg_dir, timg_dir, value_range):
+    MAR_threshold = value_range[1]  # +1000
+    # MAR_threshold = value_range[1] - 500 # +1000
+    # MAR_threshold = np.percentile(a, 90)
+
+    # img_path = os.path.join(fimg_dir, f)
+    img_path = "/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask/163689085_20240904_post.nii.gz"
+    img_itk = sitk.ReadImage(img_path)
+    origin = img_itk.GetOrigin()
+    spacing = img_itk.GetSpacing()
+    direction = img_itk.GetDirection()
+    img_array = sitk.GetArrayFromImage(img_itk)
+
+    metal_path = "/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask/163689085_20240904_post_metalmask.nii.gz"
+    metalmask_itk = sitk.ReadImage(metal_path)
+    metalmask_array = sitk.GetArrayFromImage(metalmask_itk)
+
+    demetal_path = "/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask/163689085_20240904_post_demetalmask.nii.gz"
+    demetalmask_itk = sitk.ReadImage(demetal_path)
+    demetalmask_array = sitk.GetArrayFromImage(demetalmask_itk)
+
+    img_array_min = np.min(img_array)
+    img_array_max = np.max(img_array)
+    img_array_mean = np.mean(img_array)
+    
+    # norm to (0, 255)
+    img_array_uint8 = (img_array - img_array_min) / (img_array_max - img_array_min) * 255
+    MAR_threshold_uint8 = (MAR_threshold - img_array_min) / (img_array_max - img_array_min) * 255
+    
+    # MAR
+    # print(f"img_array shape: {img_array.shape} type: {img_array.dtype}")  # (Dz, Hy, Wx)
+    for i in range(img_array.shape[0]):
+        img_uint8_slice = img_array_uint8[i, :, :]
+        img_array_slice = img_array[i, :, :]
+        _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY)
+        kernel = np.ones((5, 5), np.uint8)                                                                                                                                                                                                    
+        overmask = cv2.dilate(mask, kernel, iterations=1)
+        img_array_slice_mask = img_array_slice * np.int32(1 - overmask)
+        # print(f"img_array with mask: {np.min(img_array)} {np.max(img_array)}) ")
+        # img_array with mask: -1000 27173)
+        
+        # filter image with mask
+        img_array_slice_mask = filter_with_mask(img_array_slice_mask, 5)
+        img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + img_array_slice_mask * np.int32(overmask)
+        
+    
+    new_img_itk = sitk.GetImageFromArray(new_img_array)
+    new_img_itk.SetOrigin(origin)
+    new_img_itk.SetSpacing(spacing)
+    new_img_itk.SetDirection(direction)
+    new_img_path = os.path.join(timg_dir, f)
+    sitk.WriteImage(new_img_itk, new_img_path)
+    print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
+
+
+
 if __name__ == '__main__':
     
     refimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task02_12156deno-threelabel/imagesTs"
     # fimg_dir = r"/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v6_CBCT/NIFTI"
-    fimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs"
+    # fimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs"
+    fimg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask"
     # timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task04_ankletest/imagesTs_clip-10243071"
-    timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs_python_demetal-1"
+    # timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/nnUNetFrame/DATASET/nnUNet_raw/nnUNet_raw_data/Task07_Xudemetaltest/imagesTs_python_demetal-1"
+    timg_dir = r"/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask"
     os.makedirs(timg_dir, exist_ok = True)
     
     # value_range = compute_range(refimg_dir)
@@ -661,6 +720,7 @@ if __name__ == '__main__':
     # save_MAR_norm(fimg_dir, timg_dir, value_range)
     # save_MAR_norm1(fimg_dir, timg_dir, value_range)
     # save_MAR_norm_inpaint(fimg_dir, timg_dir, value_range)
-    save_MAR_norm_filter(fimg_dir, timg_dir, value_range)
+    # save_MAR_norm_filter(fimg_dir, timg_dir, value_range)
+    save_MAR_norm_fusion(fimg_dir, timg_dir, value_range)
     
  
