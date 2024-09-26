@@ -656,6 +656,7 @@ def save_MAR_norm_fusion(fimg_dir, timg_dir, value_range):
     spacing = img_itk.GetSpacing()
     direction = img_itk.GetDirection()
     img_array = sitk.GetArrayFromImage(img_itk)
+    mask_array = np.zeros_like(img_array)  
 
     metal_path = "/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask/163689085_20240904_post_metalmask.nii.gz"
     metalmask_itk = sitk.ReadImage(metal_path)
@@ -664,6 +665,7 @@ def save_MAR_norm_fusion(fimg_dir, timg_dir, value_range):
     demetal_path = "/mnt/lhz/Github/SEU_Ankle_MONAI/data/fuse_mask/163689085_20240904_post_demetalmask.nii.gz"
     demetalmask_itk = sitk.ReadImage(demetal_path)
     demetalmask_array = sitk.GetArrayFromImage(demetalmask_itk)
+    demetalmask_arrayc = demetalmask_array.copy() 
 
     img_array_min = np.min(img_array)
     img_array_max = np.max(img_array)
@@ -672,32 +674,41 @@ def save_MAR_norm_fusion(fimg_dir, timg_dir, value_range):
     # norm to (0, 255)
     img_array_uint8 = (img_array - img_array_min) / (img_array_max - img_array_min) * 255
     MAR_threshold_uint8 = (MAR_threshold - img_array_min) / (img_array_max - img_array_min) * 255
-    
+
     # MAR
-    # print(f"img_array shape: {img_array.shape} type: {img_array.dtype}")  # (Dz, Hy, Wx)
     for i in range(img_array.shape[0]):
         img_uint8_slice = img_array_uint8[i, :, :]
         img_array_slice = img_array[i, :, :]
         _, mask = cv2.threshold(np.uint8(img_uint8_slice), MAR_threshold_uint8, 1, cv2.THRESH_BINARY)
         kernel = np.ones((5, 5), np.uint8)                                                                                                                                                                                                    
         overmask = cv2.dilate(mask, kernel, iterations=1)
-        img_array_slice_mask = img_array_slice * np.int32(1 - overmask)
-        # print(f"img_array with mask: {np.min(img_array)} {np.max(img_array)}) ")
-        # img_array with mask: -1000 27173)
-        
-        # filter image with mask
-        img_array_slice_mask = filter_with_mask(img_array_slice_mask, 5)
-        img_array[i, :, :] = img_array_slice * np.int32(1 - overmask) + img_array_slice_mask * np.int32(overmask)
-        
-    
-    new_img_itk = sitk.GetImageFromArray(new_img_array)
-    new_img_itk.SetOrigin(origin)
-    new_img_itk.SetSpacing(spacing)
-    new_img_itk.SetDirection(direction)
-    new_img_path = os.path.join(timg_dir, f)
-    sitk.WriteImage(new_img_itk, new_img_path)
-    print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
+        mask_array[i, :, :] = overmask
 
+    ## save metal mask file
+    # new_mask_itk = sitk.GetImageFromArray(mask_array)
+    # new_mask_itk.SetOrigin(origin)
+    # new_mask_itk.SetSpacing(spacing)
+    # new_mask_itk.SetDirection(direction)
+    # new_mask_path = os.path.join(timg_dir, "metal_mask.nii.gz")
+    # sitk.WriteImage(new_mask_itk, new_mask_path)
+
+    metalmask_other = metalmask_array * (1 - mask_array)
+    for i in range(demetalmask_array.shape[0]):
+        print(f"demetalmask_array {i}")
+        for j in range(demetalmask_array.shape[1]):
+            for k in range(demetalmask_array.shape[2]):
+                if demetalmask_array[i, j ,k] == 0 and metalmask_other[i, j ,k]:
+                    demetalmask_arrayc[i, j ,k] = metalmask_other[i, j ,k]
+    
+    # save metal mask file
+    new_mask_itk = sitk.GetImageFromArray(demetalmask_arrayc)
+    new_mask_itk.SetOrigin(origin)
+    new_mask_itk.SetSpacing(spacing)
+    new_mask_itk.SetDirection(direction)
+    new_mask_path = os.path.join(timg_dir, "mask_fusion.nii.gz")
+    sitk.WriteImage(new_mask_itk, new_mask_path)
+
+    # print(f"{count} / {all_num} {f} ( {img_array_min} {img_array_max} ) norm to ( {new_img_array_min} {new_img_array_max}) ")
 
 
 if __name__ == '__main__':
