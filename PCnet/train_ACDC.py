@@ -238,7 +238,7 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     tre = calc_TRE(ngt_data, npred_data)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def register(epoch, name, output, def_out, y_seg, sample_dir):
+def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     
     # test_txt_path = "/mnt/lhz/Github/Image_registration/RDP/images/LPBA/test_img_seg_list.txt"
     # pairlist = [f.split(' ') for f in read_files_txt(test_txt_path)]
@@ -248,8 +248,9 @@ def register(epoch, name, output, def_out, y_seg, sample_dir):
     # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
 
-    image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
-    mov_path = os.path.join(image_path, name)
+    # image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
+    # mov_path = os.path.join(image_path, name)
+    name = mov_path.split('/')[-1].split('_')[0]
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
     ED_origin = data_in.GetOrigin()
@@ -295,17 +296,17 @@ def register(epoch, name, output, def_out, y_seg, sample_dir):
     savedSample_seg.SetSpacing(ED_spacing)
     savedSample_defm.SetSpacing(ED_spacing)
     
-    warped_img_path = os.path.join(sample_dir, name.split('.')[0] + '_ep' + str(epoch) + '_warped_img.nii.gz')
-    warped_seg_path = os.path.join(sample_dir, name.split('.')[0] + '_ep' + str(epoch) + '_warped_seg.nii.gz')
-    warped_flow_path = os.path.join(sample_dir, name.split('.')[0] + '_ep' + str(epoch) + '_warped_deformflow.nii.gz')
+    warped_img_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_img.nii.gz')
+    warped_seg_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_seg.nii.gz')
+    warped_flow_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_deformflow.nii.gz')
     
     sitk.WriteImage(savedSample_warped, warped_img_path)
     sitk.WriteImage(savedSample_seg, warped_seg_path)
     sitk.WriteImage(savedSample_defm, warped_flow_path)
     
-    print(f"Saving warped img: {warped_img_path}")
-    print(f"Saving warped seg: {warped_seg_path}")
-    print(f"Saving warped imgflow: {warped_flow_path}")
+    # print(f"Saving warped img: {warped_img_path}")
+    # print(f"Saving warped seg: {warped_seg_path}")
+    # print(f"Saving warped imgflow: {warped_flow_path}")
     
     return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
@@ -314,7 +315,7 @@ def main():
     batch_size = 1
     train_file = '/mnt/lhz/Github/Image_registration/PCnet/images/ACDC/train_img_seg_list.txt'
     val_file = '/mnt/lhz/Github/Image_registration/PCnet/images/ACDC/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet_checkpoints/ACDC/'
+    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet/PCnet_checkpoints/ACDC/'
     weights = [1, 1]  # loss weights
     lr = 0.0001
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
@@ -343,7 +344,8 @@ def main():
     epoch_start = 0
     max_epoch = 1000 # 30
     # img_size = (216, 256, 8)
-    img_size = (128, 128, 32)
+    # img_size = (128, 128, 32)
+    img_size = (160, 160, 32)
     cont_training = False
 
     '''
@@ -412,9 +414,14 @@ def main():
             data = [t.cuda() for t in data]
             x = data[0]
             y = data[1]
+            # print(f"ACDCDataset x shape: {x.shape} y shape: {y.shape}")
+            # ACDCDataset x shape: torch.Size([1, 1, 216, 256, 10]) y shape: torch.Size([1, 1, 216, 256, 10])
             # x_in = torch.cat((x,y),dim=1)
             x = F.interpolate(x, size=img_size, mode='trilinear')
             y = F.interpolate(y, size=img_size, mode='trilinear')
+            # print(f"ACDCDataset x reshape: {x.shape} y reshape: {y.shape}")
+            # ACDCDataset x reshape: torch.Size([1, 1, 160, 160, 32]) y reshape: torch.Size([1, 1, 160, 160, 32])
+
 
             output = model(x,y)
 

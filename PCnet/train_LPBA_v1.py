@@ -238,7 +238,7 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     tre = calc_TRE(ngt_data, npred_data)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
+def register(epoch, name, output, def_out, y_seg, sample_dir):
     
     # test_txt_path = "/mnt/lhz/Github/Image_registration/RDP/images/LPBA/test_img_seg_list.txt"
     # pairlist = [f.split(' ') for f in read_files_txt(test_txt_path)]
@@ -248,8 +248,7 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
 
-    # image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
-    name = mov_path.split('/')[-1].split('.')[0]
+    image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
     mov_path = os.path.join(image_path, name)
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
@@ -274,8 +273,8 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # Transpose (160, 192, 160) to: warp_img (160, 192, 160) deform: (160, 192, 160, 3) warp_seg: (160, 192, 160) gt_seg: (160, 192, 160)
     
     # print(f"before translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    # warp_seg_array = translabel(warp_seg_array)
-    # gt_seg_array = translabel(gt_seg_array)
+    warp_seg_array = translabel(warp_seg_array)
+    gt_seg_array = translabel(gt_seg_array)
     # print(f"after translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
     
     tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
@@ -313,9 +312,9 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
 
 def main():
     batch_size = 1
-    train_file = '/mnt/lhz/Github/Image_registration/PCnet/images/OAIZIB/train_img_seg_list.txt'
-    val_file = '/mnt/lhz/Github/Image_registration/PCnet/images/OAIZIB/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet/PCnet_checkpoints/OAIZIB/'
+    train_file = '/mnt/lhz/Github/Image_registration/PCnet/images/LPBA/train_img_seg_list.txt'
+    val_file = '/mnt/lhz/Github/Image_registration/PCnet/images/LPBA/test_img_seg_list.txt'
+    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet_checkpoints/LPBA/'
     weights = [1, 1]  # loss weights
     lr = 0.0001
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
@@ -343,8 +342,8 @@ def main():
     
     epoch_start = 0
     max_epoch = 1000 # 30
-    # img_size = (160, 384, 384)
-    img_size = (160, 160, 160)
+    # img_size = (160, 192, 160)
+    img_size = (80, 96, 80)
     cont_training = False
 
     '''
@@ -384,9 +383,9 @@ def main():
     val_composed = transforms.Compose([trans.NumpyType((np.float32, np.int16))])
     
     # train_set = datasets.LPBABrainDatasetS2S(glob.glob(train_dir + '*.pkl'), transforms=train_composed)
-    train_set = datasets.ACDCDataset(fn=train_file, transforms=train_composed)
+    train_set = datasets.LPBADataset(fn=train_file, transforms=train_composed)
     # val_set = datasets.LPBABrainInferDatasetS2S(glob.glob(val_dir + '*.pkl'), transforms=val_composed)
-    val_set = datasets.ACDCDatasetVal(fn=val_file, transforms=val_composed)
+    val_set = datasets.LPBADatasetVal(fn=val_file, transforms=val_composed)
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
@@ -528,7 +527,6 @@ def main():
 
 if __name__ == '__main__':
     '''
-    
     GPU configuration
     '''
     GPU_iden = 0

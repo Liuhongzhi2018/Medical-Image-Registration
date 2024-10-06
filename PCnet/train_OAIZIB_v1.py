@@ -238,7 +238,7 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     tre = calc_TRE(ngt_data, npred_data)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
+def register(epoch, name, output, def_out, y_seg, sample_dir):
     
     # test_txt_path = "/mnt/lhz/Github/Image_registration/RDP/images/LPBA/test_img_seg_list.txt"
     # pairlist = [f.split(' ') for f in read_files_txt(test_txt_path)]
@@ -248,8 +248,7 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
 
-    # image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
-    name = mov_path.split('/')[-1].split('.')[0]
+    image_path = "/mnt/lhz/Datasets/Learn2reg/LPBA40/test"
     mov_path = os.path.join(image_path, name)
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
@@ -315,7 +314,7 @@ def main():
     batch_size = 1
     train_file = '/mnt/lhz/Github/Image_registration/PCnet/images/OAIZIB/train_img_seg_list.txt'
     val_file = '/mnt/lhz/Github/Image_registration/PCnet/images/OAIZIB/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet/PCnet_checkpoints/OAIZIB/'
+    checkpoint_dir = '/mnt/lhz/Github/Image_registration/PCnet_checkpoints/OAIZIB/'
     weights = [1, 1]  # loss weights
     lr = 0.0001
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
