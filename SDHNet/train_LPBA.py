@@ -114,8 +114,10 @@ def fetch_dataloader(args, Logging):
         train_dataset = datasets.LiverTrain(args)
     elif args.dataset == 'brain':
         train_dataset = datasets.BrainTrain(args)
-    elif args.dataset == 'ACDC':
+    elif args.dataset == 'ACDC' or args.dataset == 'OASIS' or args.dataset == 'OAIZIB':
         train_dataset = datasets.ACDCTrain(args)
+    elif args.dataset == 'LPBA':
+        train_dataset = datasets.LPBATrain(args)
     else:
         print('Wrong Dataset')
 
@@ -364,6 +366,18 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 
+
+def translabel(img):
+    seg_table = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
+                    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
+                    66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
+                    101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
+    img_out = np.zeros_like(img)
+    for i in range(len(seg_table)):
+        img_out[img == i] = seg_table[i]
+    return img_out
+
+
 def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
     Dice, Jacc, Jacb = [], [], []
     mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
@@ -405,7 +419,7 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             # print(f"warp_seg: {torch.unique(label1_warped)}")
             # warp_seg: tensor([0.0000e+00, 1.1788e-05, 7.0557e-05,  ..., 3.0000e+00, 3.0000e+00, 3.0000e+00], device='cuda:0')
 
-            name = fpath.split('/')[-1].split('_')[0]
+            name = fpath.split('/')[-1].split('.')[0]
             # print(f"register mov_path: {mov_path}")
             data_in = sitk.ReadImage(fpath)
             shape_img = data_in.GetSize()
@@ -425,15 +439,29 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             # warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().transpose(2, 1, 0).astype(np.uint8)
             warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
             # print(f"warp_seg label: {np.unique(warp_seg_array)}")
-            # warp_seg label: [0 1 2 3]
+            # warp_seg label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+            # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+            # 48 49 50 51 52 53 54 55 56]
+            warp_seg_array_reori = translabel(warp_seg_array)
+            # print(f"warp_seg_array_reori label: {np.unique(warp_seg_array_reori)}")
+            # warp_seg_array_reori label: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
+            # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
+            # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
+            # 166 181 182]
 
             label2_seg = F.interpolate(label2, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
             gt_seg_array = label2_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
-            
-            tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+            # print(f"gt_seg_array label: {np.unique(gt_seg_array)}")
+            # gt_seg_array label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+            # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+            # 48 49 50 51 52 53 54 55 56]
 
+            # print(f"evaluate warp: {warp_seg_array_reori.shape} gt: {gt_seg_array.shape}")
+            # evaluate warp: (160, 192, 160) gt: (160, 192, 160)
+            tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+            
             savedSample_warped = sitk.GetImageFromArray(warp_img_array)
-            savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
+            savedSample_seg = sitk.GetImageFromArray(warp_seg_array_reori)
             # savedSample_defm = sitk.GetImageFromArray(deform)
             
             savedSample_warped.SetOrigin(ED_origin)
@@ -458,6 +486,7 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
 
             jaccs = []
             dices = []
+            # print(f"eval_dataset value: {eval_dataset.seg_values}")
             for v in eval_dataset.seg_values:
                 if v == 0: continue
                 label2_c = mask_class(label2, v)
@@ -472,7 +501,7 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             jacc = torch.mean(torch.cuda.FloatTensor(jaccs)).cpu().numpy()
             
             # Logging.info(f'Total_steps: {total_steps} Pair: {i:6d}/{len(eval_dataset):6d} dice:{dice:10.6f} jacc:{jacc:10.6f} jacb:{jacb:10.2f}')
-            Logging.info(f'Total steps: {total_steps} Pair: {i:d}/{len(eval_dataset):d} dice:{dice:.6f} jacc:{jacc:.6f} jacb:{jacb:.6f}')
+            Logging.info(f'Total_steps: {total_steps} Pair: {i:d}/{len(eval_dataset):d} dice:{dice:.6f} jacc:{jacc:.6f} jacb:{jacb:.6f}')
             
             Dice.append(dice)
             Jacc.append(jacc)
@@ -512,7 +541,6 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
     # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
 
 
-
 def train(args, Logging):
 
     model = Framework(args)
@@ -522,7 +550,7 @@ def train(args, Logging):
     # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], find_unused_parameters=True)
 
     train_loader = fetch_dataloader(args, Logging)
-    # img_size = (160, 192, 224)
+    # img_size = (160, 192, 160)
     img_size = (80, 80, 80)
 
     optimizer, scheduler = fetch_optimizer(args, model)
@@ -536,11 +564,11 @@ def train(args, Logging):
             # image1, image2 = [x.cuda(non_blocking=True) for x in data_blob]
             image1_data, image2_data = [x.cuda() for x in data_blob]
             optimizer.zero_grad()
-            # print(f"train image1 shape: {image1_data.shape} image2 shape: {image2_data.shape}")
+            print(f"train image1 shape: {image1_data.shape} image2 shape: {image2_data.shape}")
             # train image1 shape: torch.Size([1, 1, 428, 512, 8]) image2 shape: torch.Size([1, 1, 428, 512, 8])
             image1 = F.interpolate(image1_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
             image2 = F.interpolate(image2_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-            # print(f"transpose image1 shape: {image1.shape} image2 shape: {image2.shape}")
+            print(f"transpose image1 shape: {image1.shape} image2 shape: {image2.shape}")
             # transpose image1 shape: torch.Size([1, 1, 8, 512, 428]) image2 shape: torch.Size([1, 1, 8, 512, 428])
             # transpose image1 shape: torch.Size([1, 1, 80, 80, 80]) image2 shape: torch.Size([1, 1, 80, 80, 80])
 
@@ -564,7 +592,7 @@ def train(args, Logging):
                 PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps)
                 torch.save(model.state_dict(), PATH)
 
-                eval_dataset = datasets.ACDCTest(args)
+                eval_dataset = datasets.LPBATest(args)
                 evaluate(args, Logging, eval_dataset, img_size, model, total_steps)
 
             if total_steps == args.num_steps:
@@ -582,7 +610,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default='SDHNet', help='name your experiment')
     # parser.add_argument('--dataset', type=str, default='brain', help='which dataset to use for training')
-    parser.add_argument('--dataset', type=str, default='ACDC', help='which dataset to use for training')
+    parser.add_argument('--dataset', type=str, default='LPBA', help='which dataset to use for training')
     parser.add_argument('--epoch', type=int, default=5, help='number of epochs')
     parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
     parser.add_argument('--clip', type=float, default=1.0)

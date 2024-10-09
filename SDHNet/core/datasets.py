@@ -179,7 +179,11 @@ class ACDCTest(data.Dataset):
     def __getitem__(self, index):
         mov, fixed = self.pairs[index][0], self.pairs[index][2]
         mov_seg, fixed_seg = self.pairs[index][1], self.pairs[index][3]
-        print(f"data1: {mov} data2: {fixed} seg1: {mov_seg} seg2: {fixed_seg}")
+        # print(f"data1: {mov} data2: {fixed} seg1: {mov_seg} seg2: {fixed_seg}")
+        # data1: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame09.nii.gz
+        # data2: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame01.nii.gz 
+        # seg1: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame09_gt.nii.gz 
+        # seg2: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame01_gt.nii.gz
 
         # image1 = torch.from_numpy(tif.imread(data1)[np.newaxis]).float() / 255.0
         # image2 = torch.from_numpy(tif.imread(data2)[np.newaxis]).float() / 255.0
@@ -188,8 +192,129 @@ class ACDCTest(data.Dataset):
 
         # label1 = torch.from_numpy(tif.imread(seg1)[np.newaxis]).float()
         # label2 = torch.from_numpy(tif.imread(seg2)[np.newaxis]).float()
+        # label1 = torch.from_numpy(np.round(self.read_vol(mov_seg))[np.newaxis]).float()
+        # label2 = torch.from_numpy(np.round(self.read_vol(fixed_seg))[np.newaxis]).float()
         label1 = torch.from_numpy(self.read_vol(mov_seg)[np.newaxis]).float()
         label2 = torch.from_numpy(self.read_vol(fixed_seg)[np.newaxis]).float()
+        # print(f"ACDCTest label1: {torch.unique(label1)}")
+        # print(f"ACDCTest label2: {torch.unique(label2)}")
+        # ACDCTest label1: tensor([0., 1., 2., 3.])
+        # ACDCTest label2: tensor([0., 1., 2., 3.])
+
+        return mov, image1, image2, label1, label2
+
+    def __len__(self):
+        return len(self.pairs)
+
+
+class LPBATrain(data.Dataset):
+    def __init__(self, args):
+        self.seed = False
+        # self.size = [128, 128, 128]
+        # self.datasets = ['abide', 'abidef', 'adhd', 'adni']
+        # self.train_path = join(args.data_path, 'Train')
+        self.train_path = join(args.data_path, args.dataset)
+        # self.atlas = join(args.data_path, 'Test/lpba/S01')
+        # self.files = read_datasets(self.train_path, self.datasets)
+        self.files = read_txt(self.train_path, "train_img_seg_list.txt")
+        # self.pairs = generate_atlas(self.atlas, self.files)
+        self.pairs = generate_img_seg_pairs(self.files)
+    
+    def read_vol(self, filename):        
+        img = nib.load(filename)  # shape: (Width-x, Height-y, Depth-z)
+        vol = np.squeeze(img.dataobj)
+        return vol
+
+    def __getitem__(self, index):
+        if not self.seed:
+            random.seed(123)
+            np.random.seed(123)
+            torch.manual_seed(123)
+            torch.cuda.manual_seed_all(123)
+            self.seed = True
+
+        # index = index % len(self.pairs)
+        index = index % len(self.files)
+        # data1, data2 = self.pairs[index]
+        mov, fixed = self.pairs[index][0], self.pairs[index][2]
+        # print(f"data1: {data1} data2: {data2}")
+        # data1: /mnt/lhz/Datasets/Learn2reg/ACDC/training/patient059/patient059_frame09.nii.gz 
+        # data2: /mnt/lhz/Datasets/Learn2reg/ACDC/training/patient059/patient059_frame01.nii.gz
+
+        # image1 = torch.from_numpy(tif.imread(data1)[np.newaxis]).float() / 255.0
+        # image2 = torch.from_numpy(tif.imread(data2)[np.newaxis]).float() / 255.0
+
+        image1 = torch.from_numpy(self.read_vol(mov)[np.newaxis]).float() / 255.0
+        image2 = torch.from_numpy(self.read_vol(fixed)[np.newaxis]).float() / 255.0
+        # print(f"image1 shape: {image1.shape} image2 shape: {image2.shape}")
+        # image1 shape: torch.Size([1, 256, 216, 9]) image2 shape: torch.Size([1, 256, 216, 9])
+
+        return image1, image2
+
+    def __len__(self):
+        # return len(self.pairs)
+        return len(self.files)
+
+
+class LPBATest(data.Dataset):
+    def __init__(self, args):
+        # self.size = [128, 128, 128]
+        # self.datasets = [datas]
+        self.test_path = join(args.data_path, args.dataset)
+        # self.atlas = join(args.data_path, 'Test/lpba/S01')
+        # self.files = read_datasets(self.test_path, self.datasets)
+        self.files = read_txt(self.test_path, "test_img_seg_list.txt")
+        # self.pairs, self.labels = generate_atlas_val(self.atlas, self.files)
+        self.pairs = generate_img_seg_pairs(self.files)
+        self.seg_values = np.unique(self.read_vol(self.pairs[0][3]))
+
+    def read_vol(self, filename):        
+        img = nib.load(filename)  # shape: (Width-x, Height-y, Depth-z)
+        vol = np.squeeze(img.dataobj)
+        return vol
+
+    def translabel(self, img):
+        seg_table = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
+                     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
+                     66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
+                     101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
+        img_out = np.zeros_like(img)
+        for i in range(len(seg_table)):
+            img_out[img == seg_table[i]] = i
+        return img_out
+
+    def __getitem__(self, index):
+        mov, fixed = self.pairs[index][0], self.pairs[index][2]
+        mov_seg, fixed_seg = self.pairs[index][1], self.pairs[index][3]
+        # print(f"data1: {mov} data2: {fixed} seg1: {mov_seg} seg2: {fixed_seg}")
+        # data1: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame09.nii.gz
+        # data2: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame01.nii.gz 
+        # seg1: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame09_gt.nii.gz 
+        # seg2: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient147/patient147_frame01_gt.nii.gz
+
+        # image1 = torch.from_numpy(tif.imread(data1)[np.newaxis]).float() / 255.0
+        # image2 = torch.from_numpy(tif.imread(data2)[np.newaxis]).float() / 255.0
+        image1 = torch.from_numpy(self.read_vol(mov)[np.newaxis]).float() / 255.0
+        image2 = torch.from_numpy(self.read_vol(fixed)[np.newaxis]).float() / 255.0
+
+        # label1 = torch.from_numpy(tif.imread(seg1)[np.newaxis]).float()
+        # label2 = torch.from_numpy(tif.imread(seg2)[np.newaxis]).float()
+        # label1 = torch.from_numpy(np.round(self.read_vol(mov_seg))[np.newaxis]).float()
+        # label2 = torch.from_numpy(np.round(self.read_vol(fixed_seg))[np.newaxis]).float()
+        label1 = torch.from_numpy(self.translabel(self.read_vol(mov_seg))[np.newaxis]).float()
+        label2 = torch.from_numpy(self.translabel(self.read_vol(fixed_seg))[np.newaxis]).float()
+        # print(f"LPBATest label1: {torch.unique(label1)}")
+        # print(f"LPBATest label2: {torch.unique(label2)}")
+        # LPBATest label1: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
+        # 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
+        # 28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
+        # 42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55.,
+        # 56.])
+        # LPBATest label2: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
+        # 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
+        # 28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
+        # 42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55.,
+        # 56.])
 
         return mov, image1, image2, label1, label2
 

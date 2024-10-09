@@ -37,6 +37,12 @@ python -m torch.distributed.launch --nproc_per_node=4 train.py  --name=SDHNet  -
 
 CUDA_VISIBLE_DEVICES=0 python train_ACDC.py
 
+CUDA_VISIBLE_DEVICES=0 python train_LPBA.py
+
+CUDA_VISIBLE_DEVICES=1 python train_OASIS.py
+
+CUDA_VISIBLE_DEVICES=0 python train_OAIZIB.py
+
 ```
 
 ## Testing

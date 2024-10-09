@@ -114,7 +114,7 @@ def fetch_dataloader(args, Logging):
         train_dataset = datasets.LiverTrain(args)
     elif args.dataset == 'brain':
         train_dataset = datasets.BrainTrain(args)
-    elif args.dataset == 'ACDC':
+    elif args.dataset == 'ACDC' or args.dataset == 'OASIS' or args.dataset == 'OAIZIB':
         train_dataset = datasets.ACDCTrain(args)
     else:
         print('Wrong Dataset')
@@ -405,7 +405,7 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             # print(f"warp_seg: {torch.unique(label1_warped)}")
             # warp_seg: tensor([0.0000e+00, 1.1788e-05, 7.0557e-05,  ..., 3.0000e+00, 3.0000e+00, 3.0000e+00], device='cuda:0')
 
-            name = fpath.split('/')[-1].split('_')[0]
+            name = fpath.split('/')[-1][:10]
             # print(f"register mov_path: {mov_path}")
             data_in = sitk.ReadImage(fpath)
             shape_img = data_in.GetSize()
@@ -582,13 +582,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default='SDHNet', help='name your experiment')
     # parser.add_argument('--dataset', type=str, default='brain', help='which dataset to use for training')
-    parser.add_argument('--dataset', type=str, default='ACDC', help='which dataset to use for training')
+    parser.add_argument('--dataset', type=str, default='OASIS', help='which dataset to use for training')
     parser.add_argument('--epoch', type=int, default=5, help='number of epochs')
     parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
     parser.add_argument('--clip', type=float, default=1.0)
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=1000)
-    parser.add_argument('--val_freq', type=int, default=50000) # 2000
+    parser.add_argument('--val_freq', type=int, default=100) # 2000
     parser.add_argument('--round', type=int, default=20000, help='number of batches per epoch')
     # parser.add_argument('--data_path', type=str, default='E:/Registration/Code/TMI2022/Github/Data_MRIBrain/')
     parser.add_argument('--data_path', type=str, default='/mnt/lhz/Github/Image_registration/SDHNet/images/')
