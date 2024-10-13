@@ -303,18 +303,18 @@ if __name__ == '__main__':
     
     # label_from_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/labelsTr_3c"
     # label_from_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/labelsTs_3c"
-    label_from_dir = "/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v7_Shuhou/pair_0911_mask_fusion"
+    label_from_dir = "/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v6_CBCT/pair_1010"
     # label_to_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/Tibia_labelsTr"
     # label_to_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/Tibia_labelsTs"
     # label_to_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/Tibia_labelsTs_one"
     # label_to_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/Fibula_labelsTr"
     # label_to_dir = "/home/liuhongzhi/Data/Ankle/121_56/121_56_reorient/Fibula_labelsTs"
-    label_to_dir = "/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v7_Shuhou/pair_0911_mask_fusion"
+    label_to_dir = "/mnt/lhz/Datasets/Ankle/Yiying_Ankle_Data_v6_CBCT/pair_1010"
     
     os.makedirs(label_to_dir, exist_ok = True)
 
-    img_path = os.path.join(label_from_dir, "mask_fusion.nii.gz")
-    new_label_path = os.path.join(label_to_dir, "163689085_20240904_post_fmask_3.nii.gz")
+    img_path = os.path.join(label_from_dir, "jiao_N.nii.gz")
+    new_label_path = os.path.join(label_to_dir, "jiao_N_3.nii.gz")
     
     change_to_label(img_path, new_label_path)
     print(f"Saving to: {new_label_path}")
