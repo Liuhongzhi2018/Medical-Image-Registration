@@ -35,6 +35,7 @@ class Framework(nn.Module):
         else:
             augImg2 = Img2
 
+        # print(f"self.affnet: {Img1.shape} {augImg2.shape}")
         affines = self.affnet(Img1, augImg2)
 
         contexts = self.context(Img1)  # extract the features of the fixed image
@@ -44,6 +45,8 @@ class Framework(nn.Module):
                torch.tanh(torch.max_pool3d(hid, kernel_size=2, stride=2)),
                torch.tanh(torch.max_pool3d(hid, kernel_size=4, stride=4))]
 
+        # print(f"reconstruction:  {augImg2.shape} {affines['flow'].shape}")
+        # reconstruction:  torch.Size([1, 1, 80, 80, 80]) torch.Size([1, 3, 80, 80, 80])
         augImg2_affine = self.reconstruction(augImg2, affines['flow'])
         deforms_0, hid = self.defnet[0](Img1, augImg2_affine, cont, hid)
 

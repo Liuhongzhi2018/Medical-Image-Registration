@@ -52,6 +52,7 @@ class warp3D:
         if self.padding:
             im = F.pad(im, (1, 1, 1, 1, 1, 1))
 
+        # print(f"_interpolate im: {im.shape}")
         num_batch = im.shape[0]
         channels = im.shape[1]
         depth = im.shape[2]
@@ -96,6 +97,7 @@ class warp3D:
         base = self._repeat(torch.arange(num_batch) * dim3,
                             out_depth * out_height * out_width).cuda()
 
+        # print(f"_interpolate base: {base.shape}")
         idx_a = (base + x0 + y0 * dim1 + z0 * dim2)[:, np.newaxis].repeat(1, channels)
         idx_b = (base + x0 + y1 * dim1 + z0 * dim2)[:, np.newaxis].repeat(1, channels)
         idx_c = (base + x1 + y0 * dim1 + z0 * dim2)[:, np.newaxis].repeat(1, channels)
@@ -104,6 +106,7 @@ class warp3D:
         idx_f = (base + x0 + y1 * dim1 + z1 * dim2)[:, np.newaxis].repeat(1, channels)
         idx_g = (base + x1 + y0 * dim1 + z1 * dim2)[:, np.newaxis].repeat(1, channels)
         idx_h = (base + x1 + y1 * dim1 + z1 * dim2)[:, np.newaxis].repeat(1, channels)
+        # print(f"_interpolate idx_a: {idx_a.shape}")
 
         # use indices to lookup pixels in the flat image and restore
         # channels dim

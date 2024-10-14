@@ -35,15 +35,74 @@ python -m torch.distributed.launch --nproc_per_node=4 train.py  --name=SDHNet  -
 
 ```bash
 
-CUDA_VISIBLE_DEVICES=0 python train_ACDC.py
+CUDA_VISIBLE_DEVICES=2 python train_ACDC.py
 
-CUDA_VISIBLE_DEVICES=0 python train_LPBA.py
+CUDA_VISIBLE_DEVICES=2 python train_LPBA.py
 
-CUDA_VISIBLE_DEVICES=1 python train_OASIS.py
+CUDA_VISIBLE_DEVICES=2 python train_OASIS.py
 
-CUDA_VISIBLE_DEVICES=0 python train_OAIZIB.py
+CUDA_VISIBLE_DEVICES=2 python train_OAIZIB.py
 
 ```
+
+transpose image1 shape: torch.Size([1, 1, 80, 80, 80]) image2 shape: torch.Size([1, 1, 80, 80, 80])
+_interpolate im: torch.Size([1, 1, 80, 80, 80])
+_interpolate base: torch.Size([512000])
+_interpolate idx_a: torch.Size([512000, 1])
+self.affnet: torch.Size([1, 1, 80, 80, 80]) torch.Size([1, 1, 80, 80, 80])
+AffineNet conv1 torch.Size([1, 16, 40, 40, 40])
+AffineNet conv2 torch.Size([1, 32, 20, 20, 20])
+AffineNet conv3_1 torch.Size([1, 64, 10, 10, 10])
+AffineNet conv4_1 torch.Size([1, 128, 5, 5, 5])
+AffineNet conv5_1 torch.Size([1, 256, 3, 3, 3])
+AffineNet conv6_1 torch.Size([1, 512, 2, 2, 2])
+AffineNet conv7_W Conv3d(512, 9, kernel_size=(2, 2, 2), stride=(1, 1, 1), bias=False) torch.Size([1, 512, 2, 2, 2]) 1
+AffineNet W torch.Size([1, 3, 3]) b torch.Size([1, 3])
+AffineNet flow torch.Size([1, 3, 80, 80, 80]) A torch.Size([1, 3, 3]) W torch.Size([1, 3, 3]) b torch.Size([1, 3])
+reconstruction:  torch.Size([1, 1, 80, 80, 80]) torch.Size([1, 3, 80, 80, 80])
+_interpolate im: torch.Size([1, 1, 80, 80, 80])
+_interpolate base: torch.Size([512000])
+_interpolate idx_a: torch.Size([512000, 1])
+
+
+transpose image1 shape: torch.Size([1, 1, 160, 160, 160]) image2 shape: torch.Size([1, 1, 160, 160, 160])
+_interpolate im: torch.Size([1, 1, 160, 160, 160])
+_interpolate base: torch.Size([4096000])
+_interpolate idx_a: torch.Size([4096000, 1])
+self.affnet: torch.Size([1, 1, 160, 160, 160]) torch.Size([1, 1, 160, 160, 160])
+AffineNet conv1 torch.Size([1, 16, 80, 80, 80])
+AffineNet conv2 torch.Size([1, 32, 40, 40, 40])
+AffineNet conv3_1 torch.Size([1, 64, 20, 20, 20])
+AffineNet conv4_1 torch.Size([1, 128, 10, 10, 10])
+AffineNet conv5_1 torch.Size([1, 256, 5, 5, 5])
+AffineNet conv6_1 torch.Size([1, 512, 3, 3, 3])
+AffineNet conv7_W Conv3d(512, 9, kernel_size=(2, 2, 2), stride=(1, 1, 1), bias=False) torch.Size([1, 512, 3, 3, 3]) 1
+AffineNet W torch.Size([8, 3, 3]) b torch.Size([8, 3])
+AffineNet flow torch.Size([8, 3, 160, 160, 160]) A torch.Size([8, 3, 3]) W torch.Size([8, 3, 3]) b torch.Size([8, 3])
+reconstruction:  torch.Size([1, 1, 160, 160, 160]) torch.Size([8, 3, 160, 160, 160])
+_interpolate im: torch.Size([1, 1, 160, 160, 160])
+_interpolate base: torch.Size([4096000])
+
+transpose image1 shape: torch.Size([1, 1, 128, 128, 128]) image2 shape: torch.Size([1, 1, 128, 128, 128])
+_interpolate im: torch.Size([1, 1, 128, 128, 128])
+_interpolate base: torch.Size([2097152])
+_interpolate idx_a: torch.Size([2097152, 1])
+self.affnet: torch.Size([1, 1, 128, 128, 128]) torch.Size([1, 1, 128, 128, 128])
+AffineNet conv1 torch.Size([1, 16, 64, 64, 64])
+AffineNet conv2 torch.Size([1, 32, 32, 32, 32])
+AffineNet conv3_1 torch.Size([1, 64, 16, 16, 16])
+AffineNet conv4_1 torch.Size([1, 128, 8, 8, 8])
+AffineNet conv5_1 torch.Size([1, 256, 4, 4, 4])
+AffineNet conv6_1 torch.Size([1, 512, 2, 2, 2])
+AffineNet conv7_W Conv3d(512, 9, kernel_size=(2, 2, 2), stride=(1, 1, 1), bias=False) torch.Size([1, 512, 2, 2, 2]) 1
+AffineNet W torch.Size([1, 3, 3]) b torch.Size([1, 3])
+AffineNet flow torch.Size([1, 3, 128, 128, 128]) A torch.Size([1, 3, 3]) W torch.Size([1, 3, 3]) b torch.Size([1, 3])
+reconstruction:  torch.Size([1, 1, 128, 128, 128]) torch.Size([1, 3, 128, 128, 128])
+_interpolate im: torch.Size([1, 1, 128, 128, 128])
+_interpolate base: torch.Size([2097152])
+
+
+
 
 ## Testing
 Use this command to obtain the testing results.

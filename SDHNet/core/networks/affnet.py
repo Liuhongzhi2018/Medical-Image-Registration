@@ -54,24 +54,38 @@ class AffineNet(nn.Module):
         concatImgs = torch.cat([image1, image2], 1)  # B, C, D, H, W
 
         x = self.lrelu(self.conv1(concatImgs))
+        # print(f"AffineNet conv1 {x.shape}")
         x = self.lrelu(self.conv2(x))
+        # print(f"AffineNet conv2 {x.shape}")
         x = self.lrelu(self.conv3(x))
         x = self.lrelu(self.conv3_1(x))
+        # print(f"AffineNet conv3_1 {x.shape}")
         x = self.lrelu(self.conv4(x))
         x = self.lrelu(self.conv4_1(x))
+        # print(f"AffineNet conv4_1 {x.shape}")
         x = self.lrelu(self.conv5(x))
         x = self.lrelu(self.conv5_1(x))
+        # print(f"AffineNet conv5_1 {x.shape}")
         x = self.lrelu(self.conv6(x))
         x = self.lrelu(self.conv6_1(x))
+        # print(f"AffineNet conv6_1 {x.shape}")
 
         # I = torch.cuda.FloatTensor([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]])
         I = torch.tensor([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]], dtype=torch.float, device='cuda')
+        # print(f"AffineNet conv7_W {self.conv7_W} {x.shape} {self.multiplier}")
+        # AffineNet conv7_W Conv3d(512, 9, kernel_size=(2, 2, 2), stride=(1, 1, 1), bias=False) torch.Size([1, 512, 2, 2, 2]) 1
         W = self.conv7_W(x).view([-1, 3, 3]) * self.multiplier
         b = self.conv7_b(x).view([-1, 3]) * self.multiplier
+        # print(f"AffineNet W {W.shape} b {b.shape}")
+        # AffineNet W torch.Size([1, 3, 3]) b torch.Size([1, 3])
+        # AffineNet W torch.Size([9, 3, 3]) b torch.Size([9, 3])
 
         A = W + I
 
         sd, sh, sw = image1.shape[2:5]
         flow = self.affine_flow(W, b, sd, sh, sw)  # B, C, D, H, W (Displacement Field)
 
+        # print(f"AffineNet flow {flow.shape} A {A.shape} W {W.shape} b {b.shape}")
+        # AffineNet flow torch.Size([9, 3, 96, 256, 256]) A torch.Size([9, 3, 3]) W torch.Size([9, 3, 3]) b torch.Size([9, 3])
+        # AffineNet flow torch.Size([1, 3, 80, 80, 80]) A torch.Size([1, 3, 3]) W torch.Size([1, 3, 3]) b torch.Size([1, 3])
         return {'flow': flow, 'A': A, 'W': W, 'b': b}

@@ -511,8 +511,6 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
     Logging.info(f"Total steps: {total_steps} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre}")    
     # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
 
-
-
 def train(args, Logging):
 
     model = Framework(args)
@@ -522,8 +520,9 @@ def train(args, Logging):
     # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], find_unused_parameters=True)
 
     train_loader = fetch_dataloader(args, Logging)
-    # img_size = (160, 192, 224)
-    img_size = (80, 80, 80)
+    # img_size = (232, 256, 10)
+    # img_size = (80, 80, 80)
+    img_size = (128, 128, 128)
 
     optimizer, scheduler = fetch_optimizer(args, model)
 

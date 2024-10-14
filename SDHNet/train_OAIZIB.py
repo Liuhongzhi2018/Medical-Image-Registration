@@ -523,7 +523,8 @@ def train(args, Logging):
 
     train_loader = fetch_dataloader(args, Logging)
     # img_size = (160, 192, 224)
-    img_size = (80, 80, 80)
+    # img_size = (80, 80, 80)
+    img_size = (128, 128, 128)
 
     optimizer, scheduler = fetch_optimizer(args, model)
 

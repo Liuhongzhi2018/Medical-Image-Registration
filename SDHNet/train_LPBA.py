@@ -551,7 +551,8 @@ def train(args, Logging):
 
     train_loader = fetch_dataloader(args, Logging)
     # img_size = (160, 192, 160)
-    img_size = (80, 80, 80)
+    # img_size = (80, 80, 80)
+    img_size = (128, 128, 128)
 
     optimizer, scheduler = fetch_optimizer(args, model)
 
@@ -564,11 +565,11 @@ def train(args, Logging):
             # image1, image2 = [x.cuda(non_blocking=True) for x in data_blob]
             image1_data, image2_data = [x.cuda() for x in data_blob]
             optimizer.zero_grad()
-            print(f"train image1 shape: {image1_data.shape} image2 shape: {image2_data.shape}")
+            # print(f"train image1 shape: {image1_data.shape} image2 shape: {image2_data.shape}")
             # train image1 shape: torch.Size([1, 1, 428, 512, 8]) image2 shape: torch.Size([1, 1, 428, 512, 8])
             image1 = F.interpolate(image1_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
             image2 = F.interpolate(image2_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-            print(f"transpose image1 shape: {image1.shape} image2 shape: {image2.shape}")
+            # print(f"transpose image1 shape: {image1.shape} image2 shape: {image2.shape}")
             # transpose image1 shape: torch.Size([1, 1, 8, 512, 428]) image2 shape: torch.Size([1, 1, 8, 512, 428])
             # transpose image1 shape: torch.Size([1, 1, 80, 80, 80]) image2 shape: torch.Size([1, 1, 80, 80, 80])
 
