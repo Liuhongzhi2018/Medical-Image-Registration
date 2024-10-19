@@ -589,7 +589,7 @@ if __name__ == '__main__':
     parser.add_argument('--clip', type=float, default=1.0)
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=1000)
-    parser.add_argument('--val_freq', type=int, default=100) # 2000
+    parser.add_argument('--val_freq', type=int, default=50000) # 2000
     parser.add_argument('--round', type=int, default=20000, help='number of batches per epoch')
     # parser.add_argument('--data_path', type=str, default='E:/Registration/Code/TMI2022/Github/Data_MRIBrain/')
     parser.add_argument('--data_path', type=str, default='/mnt/lhz/Github/Image_registration/SDHNet/images/')

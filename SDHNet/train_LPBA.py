@@ -402,9 +402,15 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
         # transpose mov_label shape: torch.Size([1, 1, 80, 80, 80]) fixed_label shape: torch.Size([1, 1, 80, 80, 80])
         label1, label2 = torch.round(label1), torch.round(label2)
         # print(f"mov label: {torch.unique(label1)}")
+        # mov label: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
+        #                   14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
+        #                   28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
+        #                   42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55., 56.], device='cuda:0')
         # print(f"fixed label: {torch.unique(label2)}")
-        # mov label: tensor([0., 1., 2., 3.], device='cuda:0')
-        # fixed label: tensor([0., 1., 2., 3.], device='cuda:0')
+        # fixed label: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
+        #                       14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
+        #                       28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
+        #                       42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55., 56.], device='cuda:0')
 
         with torch.no_grad():
             # _, _, _, agg_flow, _ = model.module(image1, image2, augment=False)
@@ -438,12 +444,12 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             warp_seg = F.interpolate(label1_warped, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
             # warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().transpose(2, 1, 0).astype(np.uint8)
             warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
-            # print(f"warp_seg label: {np.unique(warp_seg_array)}")
+            print(f"warp_seg label: {np.unique(warp_seg_array)}")
             # warp_seg label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
             # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
             # 48 49 50 51 52 53 54 55 56]
             warp_seg_array_reori = translabel(warp_seg_array)
-            # print(f"warp_seg_array_reori label: {np.unique(warp_seg_array_reori)}")
+            print(f"warp_seg_array_reori label: {np.unique(warp_seg_array_reori)}")
             # warp_seg_array_reori label: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
             # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
             # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
@@ -451,7 +457,7 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
 
             label2_seg = F.interpolate(label2, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
             gt_seg_array = label2_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
-            # print(f"gt_seg_array label: {np.unique(gt_seg_array)}")
+            print(f"gt_seg_array label: {np.unique(gt_seg_array)}")
             # gt_seg_array label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
             # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
             # 48 49 50 51 52 53 54 55 56]
@@ -617,7 +623,7 @@ if __name__ == '__main__':
     parser.add_argument('--clip', type=float, default=1.0)
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=1000)
-    parser.add_argument('--val_freq', type=int, default=50000) # 2000
+    parser.add_argument('--val_freq', type=int, default=1000) # 2000
     parser.add_argument('--round', type=int, default=20000, help='number of batches per epoch')
     # parser.add_argument('--data_path', type=str, default='E:/Registration/Code/TMI2022/Github/Data_MRIBrain/')
     parser.add_argument('--data_path', type=str, default='/mnt/lhz/Github/Image_registration/SDHNet/images/')
