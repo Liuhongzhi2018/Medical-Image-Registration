@@ -1,0 +1,9 @@
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S09.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S06.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S04.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S02.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S03.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S08.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S10.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S07.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
+/mnt/lhz/Datasets/Learn2reg/LPBA40/label/S05.delineation.structure.label.nii.gz /mnt/lhz/Datasets/Learn2reg/LPBA40/label/S01.delineation.structure.label.nii.gz
