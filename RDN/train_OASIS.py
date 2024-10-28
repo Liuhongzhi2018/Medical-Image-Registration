@@ -104,14 +104,7 @@ def fetch_loss(affines, deforms, agg_flow, image1, image2):
 
 
 def fetch_dataloader(args):
-    if args.dataset == 'liver':
-        # /mnt/lhz/Github/Image_registration/RDN/core/datasets.py
-        train_dataset = datasets.LiverTrain(args)
-    elif args.dataset == 'brain':
-        train_dataset = datasets.BrainTrain(args)
-    # elif args.dataset == 'oasis':
-    #     train_dataset = datasets.OasisTrain(args)
-    elif args.dataset == 'ACDC':
+    if args.dataset == 'ACDC':
         train_dataset = datasets.ACDCTrain(args)
     elif args.dataset == 'LPBA':
         train_dataset = datasets.LPBATrain(args)
@@ -133,8 +126,9 @@ def fetch_dataloader(args):
 
     # if args.local_rank == 0:
     #     print('Image pairs in training: %d' % len(train_dataset), file=args.files, flush=True)
-    #     print('Image pairs in training: %d' % len(train_dataset))
     
+    print('Image pairs in training: %d' % len(train_dataset))
+    # Image pairs in training: 394
     return train_loader
 
 
@@ -173,11 +167,11 @@ class Logger:
             self.running_loss[key] = self.running_loss[key] + metrics[key]
 
         # if self.total_steps % self.sum_freq == self.sum_freq - 1:
-        if self.total_steps % self.sum_freq == 0:
+        # if self.total_steps % self.sum_freq == 0:
             # if args.local_rank == 0:
             #     self._print_training_status()
-            self._print_training_status()
-            self.running_loss = {}
+        self._print_training_status()
+        self.running_loss = {}
 
 
 def evaluate_OASIS(args, model, steps, Logging, type):
@@ -213,7 +207,6 @@ def evaluate_OASIS(args, model, steps, Logging, type):
         image1, image2  = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][0][np.newaxis].cuda()
         label1, label2 = eval_dataset[i][3][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
         
-
         with torch.no_grad():
             start = time.time()
             # _, _, _, agg_flow = model.module(image1, image2)
@@ -300,6 +293,7 @@ def train_teacher(args, Logging):
 
     # if args.local_rank == 0:
     #     count_parameters(model, type="teacher")
+    count_parameters(model, Logging, type="teacher")
 
     # if args.restore_teacher_ckpt is not None:
     #     if args.local_rank == 0:
@@ -307,8 +301,8 @@ def train_teacher(args, Logging):
     #         print('Restore ckpt: %s' % args.restore_ckpt)
     #     model.load_state_dict(torch.load(args.restore_ckpt))
 
-    # model.train()
-    # model.cuda()
+    model.train()
+    model.cuda()
 
     train_loader = fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
@@ -323,6 +317,8 @@ def train_teacher(args, Logging):
             model.train()
             # image1-fixed  image2-moving
             image1, image2 = [x.cuda() for x in data_blob]
+            # print(f"image1 {image1.shape} image2 {image2.shape}")
+            # image1 torch.Size([1, 1, 192, 224, 160]) image2 torch.Size([1, 1, 192, 224, 160])
 
             optimizer.zero_grad()
             image2_aug = augmentation(image2)
@@ -338,7 +334,7 @@ def train_teacher(args, Logging):
             optimizer.step()
             scheduler.step()
             total_steps = total_steps + 1
-            print(f"total_steps: {total_steps}")
+            # print(f"total_steps: {total_steps}")
             logger.push(metrics)
 
             # if total_steps % args.val_freq == args.val_freq - 1:
@@ -394,7 +390,6 @@ if __name__ == '__main__':
 
     # if args.local_rank == 0:
     #     make_dirs(args)
-    make_dirs(args)
 
     random.seed(123)
     np.random.seed(123)
@@ -407,25 +402,7 @@ if __name__ == '__main__':
 
     if args.dataset == "ACDC" or "OASIS":
         # args.dataset_val = ['ACDC_val']
-        args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/"
-    elif args.dataset == "liver":
-        args.dataset_val = ['sliver_val', 'lspig_val']
-        if args.task_path == "/":
-            args.data_path = "/data/hubosist/CT_Liver_tiff/"
-        else:
-            args.data_path = "/braindat/lab/hubo/DATASET/CT_Liver/"
-    elif args.dataset == "brain":
-        args.dataset_val = ["lpba_val"]
-        if args.task_path == "/":
-            args.data_path = "/data/hubosist/MRI_Brain_tiff/"
-        else:
-            args.data_path = "/braindat/lab/hubo/DATASET/MRI_Brain/"
-    # elif args.dataset == "oasis":
-    #     args.dataset_val = ["oasis_val"]
-    #     if args.task_path == "/":
-    #         args.data_path = "/data/hubosist/MRI_Brain_tiff/"
-    #     else:
-    #         args.data_path = "/braindat/lab/hubo/DATASET/Learn2Reg/OASIS/"    
+        args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/" 
     else:
         print('Wrong Dataset')
 
@@ -458,6 +435,7 @@ if __name__ == '__main__':
     Logging.info('Step: %s' % args.num_steps)
     Logging.info('Path: %s' % args.base_path)
     Logging.info('Parallel GPU: %s' % args.nums_gpu)
+    Logging.info(f"now cuda device: {torch.cuda.current_device()}")
 
     train_teacher(args, Logging)
     # args.files.close()
