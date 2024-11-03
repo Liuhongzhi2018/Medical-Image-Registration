@@ -151,7 +151,7 @@ class Logger:
     def _print_training_status(self):
         metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps + 1, self.scheduler.get_lr()[0])
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
         # print(training_str + "".join(metrics_data), file=args.files, flush=True)
         self.Logging.info(training_str + "".join(metrics_data))
         for key in self.running_loss:
@@ -198,15 +198,23 @@ def evaluate_OASIS(args, model, steps, Logging, type):
     Logging.info('Image pairs in evaluation: %d' % len(eval_dataset))
     Logging.info('Evaluation steps: %s' % steps)
     Logging.info('Model Type: %s' % type)
-    count_parameters(model, Logging, type="teacher")
+    # count_parameters(model, Logging, type="teacher")
 
     for i in range(len(eval_dataset)):
         # image1, image2 = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
         # label1, label2 = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
         # image1-fixed image2-moving
-        image1, image2  = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][0][np.newaxis].cuda()
-        label1, label2 = eval_dataset[i][3][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
-        
+        image1, image2  = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
+        label1, label2 = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
+        # print(f"evaluate_OASIS image1 {image1.shape} image2 {image2.shape}")
+        # evaluate_OASIS image1 torch.Size([1, 1, 192, 224, 160]) image2 torch.Size([1, 1, 192, 224, 160])
+        # print(f"evaluate_OASIS image1 max {image1.max()} min {image1.min()} image2 max {image2.max()} min {image2.min()}")
+        # evaluate_OASIS image1 max 0.8627451062202454 min 0.0 image2 max 0.7960784435272217 min 0.0
+        # print(f"evaluate_OASIS label1 {label1.shape} label2 {label2.shape}")
+        # evaluate_OASIS label1 torch.Size([1, 1, 192, 224, 160]) label2 torch.Size([1, 1, 192, 224, 160])
+        # print(f"evaluate_OASIS label1 max {label1.max()} min {label1.min()} label2 max {label2.max()} min {label2.min()}")
+        # evaluate_OASIS label1 max 35.0 min 0.0 label2 max 35.0 min 0.0
+
         with torch.no_grad():
             start = time.time()
             # _, _, _, agg_flow = model.module(image1, image2)
@@ -217,10 +225,18 @@ def evaluate_OASIS(args, model, steps, Logging, type):
         jaccs = []
         dices = []
 
+        # print(f"eval_dataset.seg_values {eval_dataset.seg_values}")
+        # eval_dataset.seg_values [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
+        # 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
         for v in eval_dataset.seg_values:
             label1_fixed = mask_class(label1, v)
-            label2_warped = warp3D()(mask_class(label2, v), agg_flow)
-
+            # label2_warped = warp3D()(mask_class(label2, v), agg_flow)
+            label2_in = mask_class(label2, v)
+            label2_warped = warp3D()(label2_in, agg_flow)
+            # print(f"evaluate_OASIS label1_fixed max {label1_fixed.max()} min {label1_fixed.min()} label2_in max {label2_in.max()} min {label2_in.min()}")
+            # evaluate_OASIS label1_fixed max 255.0 min 0.0 label2_in max 255.0 min 0.0
+            # print(f"evaluate_OASIS label2_warped max {label2_warped.max()} min {label2_warped.min()}")
+            # evaluate_OASIS label2_warped max 255.0000457763672 min 0.0
             class_dice, class_jacc = mask_metrics(label1_fixed, label2_warped)
 
             dices.append(class_dice)
@@ -238,7 +254,7 @@ def evaluate_OASIS(args, model, steps, Logging, type):
             # print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
             #         format(i, dice, jacc, jacb, times))
         Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
-                format(i, dice, jacc, jacb, times))
+                    format(i, dice, jacc, jacb, times))
 
         Dice.append(dice)
         Jacc.append(jacc)
@@ -363,7 +379,7 @@ if __name__ == '__main__':
     parser.add_argument('--round', type=int, default=5000, help='number of batches per epoch')
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=10) # 50
-    parser.add_argument('--val_freq', type=int, default=10) # 250
+    parser.add_argument('--val_freq', type=int, default=5000) # 250
     parser.add_argument('--local_rank', default=-1, type=int, help='node rank for distributed training')
     args = parser.parse_args()
 

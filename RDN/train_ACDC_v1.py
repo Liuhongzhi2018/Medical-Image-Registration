@@ -11,8 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.distributed as dist
-import torch.nn.functional as F
-
 import core.datasets as datasets
 import core.losses as losses
 from core.utils.warp import warp3D
@@ -56,32 +54,6 @@ def count_parameters(model, Logging, type):
     # print("----------" + type.title() + "-Net Params----------\n")
     Logging.info("----------" + type.title() + "-Net Params----------\n")
 
-def mask_class(label, value):
-    return (torch.abs(label - value) < 0.5).float() * 255.0
-
-def mask_metrics(seg1, seg2):
-    sizes = np.prod(seg1.shape[1:])
-    seg1 = (seg1.view(-1, sizes) > 128).type(torch.float32)
-    seg2 = (seg2.view(-1, sizes) > 128).type(torch.float32)
-    dice_score = 2.0 * torch.sum(seg1 * seg2, 1) / (torch.sum(seg1, 1) + torch.sum(seg2, 1))
-
-    union = torch.sum(torch.max(seg1, seg2), 1)
-    iden = (torch.ones(*union.shape) * 0.01).cuda()
-    jacc_score = torch.sum(torch.min(seg1, seg2), 1) / torch.max(iden, union)
-    return dice_score, jacc_score
-
-def jacobian_det(flow):
-    bias_d = np.array([0, 0, 1])
-    bias_h = np.array([0, 1, 0])
-    bias_w = np.array([1, 0, 0])
-
-    volume_d = np.transpose(flow[:, 1:, :-1, :-1] - flow[:, :-1, :-1, :-1], (1, 2, 3, 0)) + bias_d
-    volume_h = np.transpose(flow[:, :-1, 1:, :-1] - flow[:, :-1, :-1, :-1], (1, 2, 3, 0)) + bias_h
-    volume_w = np.transpose(flow[:, :-1, :-1, 1:] - flow[:, :-1, :-1, :-1], (1, 2, 3, 0)) + bias_w
-
-    jacobian_det_volume = np.linalg.det(np.stack([volume_w, volume_h, volume_d], -1))
-    jd = np.sum(jacobian_det_volume <= 0)
-    return jd
 
 def fetch_loss(affines, deforms, agg_flow, image1, image2):
 
@@ -106,7 +78,14 @@ def fetch_loss(affines, deforms, agg_flow, image1, image2):
 
 
 def fetch_dataloader(args):
-    if args.dataset == 'ACDC':
+    if args.dataset == 'liver':
+        # /mnt/lhz/Github/Image_registration/RDN/core/datasets.py
+        train_dataset = datasets.LiverTrain(args)
+    elif args.dataset == 'brain':
+        train_dataset = datasets.BrainTrain(args)
+    # elif args.dataset == 'oasis':
+    #     train_dataset = datasets.OasisTrain(args)
+    elif args.dataset == 'ACDC':
         train_dataset = datasets.ACDCTrain(args)
     elif args.dataset == 'LPBA':
         train_dataset = datasets.LPBATrain(args)
@@ -128,9 +107,8 @@ def fetch_dataloader(args):
 
     # if args.local_rank == 0:
     #     print('Image pairs in training: %d' % len(train_dataset), file=args.files, flush=True)
+    #     print('Image pairs in training: %d' % len(train_dataset))
     
-    print('Image pairs in training: %d' % len(train_dataset))
-    # Image pairs in training: 394
     return train_loader
 
 
@@ -138,6 +116,7 @@ def fetch_optimizer(args, model):
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     milestones = [args.round * 3, args.round * 4, args.round * 5]  # args.epoch == 5
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.5)
+
     return optimizer, scheduler
 
 
@@ -153,9 +132,9 @@ class Logger:
     def _print_training_status(self):
         metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps + 1, self.scheduler.get_lr()[0])
         # print(training_str + "".join(metrics_data), file=args.files, flush=True)
-        self.Logging.info(training_str + "".join(metrics_data))
+        self.Logging(training_str + "".join(metrics_data))
         for key in self.running_loss:
             self.running_loss[key] = 0.0
 
@@ -168,12 +147,10 @@ class Logger:
 
             self.running_loss[key] = self.running_loss[key] + metrics[key]
 
-        # if self.total_steps % self.sum_freq == self.sum_freq - 1:
-        # if self.total_steps % self.sum_freq == 0:
-            # if args.local_rank == 0:
-            #     self._print_training_status()
-        self._print_training_status()
-        self.running_loss = {}
+        if self.total_steps % self.sum_freq == self.sum_freq - 1:
+            if args.local_rank == 0:
+                self._print_training_status()
+            self.running_loss = {}
 
 
 def evaluate_ACDC(args, model, steps, Logging, type):
@@ -200,53 +177,27 @@ def evaluate_ACDC(args, model, steps, Logging, type):
     Logging.info('Image pairs in evaluation: %d' % len(eval_dataset))
     Logging.info('Evaluation steps: %s' % steps)
     Logging.info('Model Type: %s' % type)
-    # count_parameters(model, Logging, type="teacher")
+    count_parameters(model, Logging, type="teacher")
 
     for i in range(len(eval_dataset)):
         # image1, image2 = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
         # label1, label2 = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
-        # image1-fixed image2-moving
-        image1, image2  = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
-        label1, label2 = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
-        # print(f"evaluate_ACDC image1 {image1.shape} image2 {image2.shape}")
-        # evaluate_ACDC image1 torch.Size([1, 1, 9, 256, 214]) image2 torch.Size([1, 1, 9, 256, 214])
-        # print(f"evaluate_ACDC image1 max {image1.max()} min {image1.min()} image2 max {image2.max()} min {image2.min()}")
-        # evaluate_ACDC image1 max 255.0 min 0.0 image2 max 255.0 min 0.0
-        # print(f"evaluate_ACDC label1 {label1.shape} label2 {label2.shape}")
-        # evaluate_ACDC label1 torch.Size([1, 1, 9, 256, 214]) label2 torch.Size([1, 1, 9, 256, 214])
-        # print(f"evaluate_ACDC label1 max {label1.max()} min {label1.min()} label2 max {label2.max()} min {label2.min()}")
-        # evaluate_ACDC label1 max 3.0 min 0.0 label2 max 3.0 min 0.0
-        image1 = F.interpolate(image1.float(), size=[192, 224, 160], mode='trilinear')
-        image2 = F.interpolate(image2.float(), size=[192, 224, 160], mode='trilinear')
-        # print(f"evaluate_ACDC image1 {image1.shape} image2 {image2.shape}")
-        label1 = F.interpolate(label1.float(), size=[192, 224, 160], mode='trilinear')
-        label2 = F.interpolate(label2.float(), size=[192, 224, 160], mode='trilinear')
-        # print(f"evaluate_ACDC label1 {label1.shape} label2 {label2.shape}")
+        fixed_img, moving_img  = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][2][np.newaxis].cuda()
+        fixed_label, moving_label = eval_dataset[i][1][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
 
         with torch.no_grad():
             start = time.time()
-            # _, _, _, agg_flow = model.module(image1, image2)
-            _, _, _, agg_flow = model(image1, image2)
+            _, _, _, agg_flow = model.module(image1, image2)
             end = time.time()
             times = end - start
 
         jaccs = []
         dices = []
 
-        # print(f"eval_dataset.seg_values {eval_dataset.seg_values}")
-        # eval_dataset.seg_values [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
-        # 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
         for v in eval_dataset.seg_values:
             label1_fixed = mask_class(label1, v)
-            # label2_warped = warp3D()(mask_class(label2, v), agg_flow)
-            label2_in = mask_class(label2, v)
-            label2_warped = warp3D()(label2_in, agg_flow)
-            # print(f"evaluate_ACDC label1_fixed {label1_fixed.shape} label2_warped {label2_warped.shape}")
-            # evaluate_ACDC label1_fixed torch.Size([1, 1, 15, 288, 232]) label2_warped torch.Size([1, 1, 15, 288, 232])
-            # print(f"evaluate_ACDC label1_fixed max {label1_fixed.max()} min {label1_fixed.min()} label2_in max {label2_in.max()} min {label2_in.min()}")
-            # evaluate_OASIS label1_fixed max 255.0 min 0.0 label2_in max 255.0 min 0.0
-            # print(f"evaluate_ACDC label2_warped max {label2_warped.max()} min {label2_warped.min()}")
-            # evaluate_OASIS label2_warped max 255.00003051757812 min 0.0
+            label2_warped = warp3D()(mask_class(label2, v), agg_flow)
+
             class_dice, class_jacc = mask_metrics(label1_fixed, label2_warped)
 
             dices.append(class_dice)
@@ -257,13 +208,11 @@ def evaluate_ACDC(args, model, steps, Logging, type):
         dice = torch.mean(torch.cuda.FloatTensor(dices)).cpu().numpy()
         jacc = torch.mean(torch.cuda.FloatTensor(jaccs)).cpu().numpy()
 
-        # if args.local_rank == 0:
-            # print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
-            #         format(i, dice, jacc, jacb, times),
-            #         file=f, flush=True)
-            # print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
-            #         format(i, dice, jacc, jacb, times))
-        Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
+        if args.local_rank == 0:
+            print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
+                    format(i, dice, jacc, jacb, times),
+                    file=f, flush=True)
+            print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
                     format(i, dice, jacc, jacb, times))
 
         Dice.append(dice)
@@ -276,38 +225,29 @@ def evaluate_ACDC(args, model, steps, Logging, type):
     jacb_mean, jacb_std = np.mean(np.array(Jacb)), np.std(np.array(Jacb))
     time_mean, time_std = np.mean(np.array(Time[1:])), np.std(np.array(Time[1:]))
 
-    # if args.local_rank == 0:
-        # print('Summary --->  '
-        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-        #         .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
-        #         file=f, flush=True)
-        # print('Summary --->  '
-        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-        #         .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
-        # print('Step{:12d} --->  '
-        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-        #         .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
-        #         file=g, flush=True)
-        # print('Step{:12d} --->  '
-        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-        #         .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
-        
-    Logging.info('Summary --->  '
-        'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-        'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-        .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
+    if args.local_rank == 0:
+        print('Summary --->  '
+                'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+                .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
+                file=f, flush=True)
+        print('Summary --->  '
+                'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+                .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
 
-    Logging.info('Step{:12d} --->  '
-            'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
-            'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
-            .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
+        print('Step{:12d} --->  '
+                'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+                .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
+                file=g, flush=True)
+        print('Step{:12d} --->  '
+                'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+                .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
 
-    # f.close()
-    # g.close()
+    f.close()
+    g.close()
 
 
 def train_teacher(args, Logging):
@@ -319,7 +259,6 @@ def train_teacher(args, Logging):
 
     # if args.local_rank == 0:
     #     count_parameters(model, type="teacher")
-    count_parameters(model, Logging, type="teacher")
 
     # if args.restore_teacher_ckpt is not None:
     #     if args.local_rank == 0:
@@ -327,8 +266,8 @@ def train_teacher(args, Logging):
     #         print('Restore ckpt: %s' % args.restore_ckpt)
     #     model.load_state_dict(torch.load(args.restore_ckpt))
 
-    model.train()
-    model.cuda()
+    # model.train()
+    # model.cuda()
 
     train_loader = fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
@@ -343,18 +282,10 @@ def train_teacher(args, Logging):
             model.train()
             # image1-fixed  image2-moving
             image1, image2 = [x.cuda() for x in data_blob]
-            # print(f"train_teacher image1 {image1.shape} image2 {image2.shape}")
-            # # train_teacher image1 torch.Size([1, 1, 9, 216, 256]) image2 torch.Size([1, 1, 9, 216, 256])
-            image1 = F.interpolate(image1.float(), size=[192, 224, 160], mode='trilinear')
-            image2 = F.interpolate(image2.float(), size=[192, 224, 160], mode='trilinear')
-            # print(f"image1 {image1.shape} image2 {image2.shape}")
-            # image1 torch.Size([1, 1, 192, 224, 160]) image2 torch.Size([1, 1, 192, 224, 160])
 
             optimizer.zero_grad()
             image2_aug = augmentation(image2)
-            # Logging.info(f"RDN training image1: {image1.shape} image2_aug: {image2_aug.shape}")
-            # RDN training image1: torch.Size([1, 1, 192, 224, 160]) image2_aug: torch.Size([1, 1, 192, 224, 160])
-
+            Logging.info(f"RDN training image1: {image1.shape} image2_aug: {image2_aug.shape}")
             image2_aug, _, deforms, agg_flow = model(image1, image2_aug)
 
             loss, metrics = fetch_loss(_, deforms, agg_flow, image1, image2_aug)
@@ -364,11 +295,10 @@ def train_teacher(args, Logging):
             optimizer.step()
             scheduler.step()
             total_steps = total_steps + 1
-            # print(f"total_steps: {total_steps}")
+
             logger.push(metrics)
 
-            # if total_steps % args.val_freq == args.val_freq - 1:
-            if total_steps % args.val_freq == 0:
+            if total_steps % args.val_freq == args.val_freq - 1:
                 # if args.local_rank == 0:
                 model.eval()
                 evaluate_ACDC(args, model, total_steps + 1, Logging, type="teacher")
@@ -392,13 +322,15 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=5, help='number of epochs')
     parser.add_argument('--round', type=int, default=5000, help='number of batches per epoch')
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
-    parser.add_argument('--sum_freq', type=int, default=10) # 50
-    parser.add_argument('--val_freq', type=int, default=5000) # 250
+    parser.add_argument('--sum_freq', type=int, default=50)
+    parser.add_argument('--val_freq', type=int, default=250)
+
     parser.add_argument('--local_rank', default=-1, type=int, help='node rank for distributed training')
+
     args = parser.parse_args()
 
-    # dist.init_process_group(backend='nccl')
-    # torch.cuda.set_device(args.local_rank)
+    dist.init_process_group(backend='nccl')
+    torch.cuda.set_device(args.local_rank)
 
     # args.task_path = sys.path[0]
     # if args.task_path[:5] == "/code":
@@ -412,14 +344,14 @@ if __name__ == '__main__':
     # args.model_path = args.task_path + '/output/checkpoints_' + args.dataset
     args.model_path = os.path.join(args.base_path, args.dataset + '_' + curr_time, 'checkpoints')
     # args.eval_path = args.task_path + '/output/eval_' + args.dataset
-    args.eval_path = os.path.join(args.base_path, args.dataset + '_' + curr_time, 'eval')
+    args.eval_path = args.model_path = os.path.join(args.base_path, args.dataset + '_' + curr_time, 'eval')
 
     os.makedirs(args.base_path, exist_ok=True)
     os.makedirs(args.model_path, exist_ok=True)
     os.makedirs(args.eval_path, exist_ok=True)
 
-    # if args.local_rank == 0:
-    #     make_dirs(args)
+    if args.local_rank == 0:
+        make_dirs(args)
 
     random.seed(123)
     np.random.seed(123)
@@ -430,11 +362,30 @@ if __name__ == '__main__':
     args.batch = args.batch
     args.num_steps = args.epoch * args.round
 
-    if args.dataset == "ACDC" or "OASIS":
+    if args.dataset == "ACDC":
         # args.dataset_val = ['ACDC_val']
-        args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/" 
+        args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/"
+    elif args.dataset == "liver":
+        args.dataset_val = ['sliver_val', 'lspig_val']
+        if args.task_path == "/":
+            args.data_path = "/data/hubosist/CT_Liver_tiff/"
+        else:
+            args.data_path = "/braindat/lab/hubo/DATASET/CT_Liver/"
+    elif args.dataset == "brain":
+        args.dataset_val = ["lpba_val"]
+        if args.task_path == "/":
+            args.data_path = "/data/hubosist/MRI_Brain_tiff/"
+        else:
+            args.data_path = "/braindat/lab/hubo/DATASET/MRI_Brain/"
+    # elif args.dataset == "oasis":
+    #     args.dataset_val = ["oasis_val"]
+    #     if args.task_path == "/":
+    #         args.data_path = "/data/hubosist/MRI_Brain_tiff/"
+    #     else:
+    #         args.data_path = "/braindat/lab/hubo/DATASET/Learn2Reg/OASIS/"    
     else:
         print('Wrong Dataset')
+
 
     # Logger
     Logging = logging.getLogger()
@@ -463,11 +414,8 @@ if __name__ == '__main__':
     Logging.info('Dataset: %s' % args.dataset)
     Logging.info('Batch size: %s' % args.batch)
     Logging.info('Step: %s' % args.num_steps)
-    Logging.info('Path: %s' % args.base_path)
     Logging.info('Parallel GPU: %s' % args.nums_gpu)
-    Logging.info(f"now cuda device: {torch.cuda.current_device()}")
 
     train_teacher(args, Logging)
-    # args.files.close()
 
     print("Finished!")
