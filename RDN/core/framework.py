@@ -17,6 +17,10 @@ def augmentation(Img2):
     augFlow = (aug_transform.free_form_fields(imgs, control_fields)).cuda()  # B, C, D, H, W
 
     augImg2 = warp.warp3D()(Img2, augFlow)  # B, C, D, H, W
+    # print(f"augmentation control_fields {control_fields.shape} augFlow {augFlow.shape} augImg2 {augImg2.shape}")
+    # augmentation control_fields torch.Size([1, 3, 5, 5, 5])
+    # augFlow torch.Size([1, 3, 192, 224, 160])
+    # augImg2 torch.Size([1, 1, 192, 224, 160])
 
     return augImg2
 
