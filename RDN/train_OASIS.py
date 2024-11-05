@@ -402,7 +402,7 @@ def train_teacher(args, Logging):
                 PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps)
                 torch.save(model.state_dict(), PATH)
 
-            if total_steps == args.num_steps:
+            if total_steps == args.num_steps + 1:
                 should_keep_training = False
                 break
 

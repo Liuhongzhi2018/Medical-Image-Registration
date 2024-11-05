@@ -114,8 +114,6 @@ def fetch_dataloader(args, Logging):
         train_dataset = datasets.LiverTrain(args)
     elif args.dataset == 'brain':
         train_dataset = datasets.BrainTrain(args)
-    elif args.dataset == 'ACDC' or args.dataset == 'OASIS' or args.dataset == 'OAIZIB':
-        train_dataset = datasets.ACDCTrain(args)
     elif args.dataset == 'LPBA':
         train_dataset = datasets.LPBATrain(args)
     else:
@@ -133,6 +131,66 @@ def fetch_dataloader(args, Logging):
     return train_loader
 
 
+def save_samples(args, steps, image2_warped, label2_warped, agg_flow, img_path):
+    # print(f"save_samples img_path {img_path}")
+    # save_samples img_path /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient142/patient142_frame01.nii.gz
+    index = img_path.split('/')[-1].split('.')[0]
+    data_in = sitk.ReadImage(img_path)
+    nii_array = sitk.GetArrayFromImage(data_in)
+    # print(f"save_samples image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
+    # save_samples image2_warped torch.Size([1, 1, 128, 128, 128]) label2_warped torch.Size([1, 1, 128, 128, 128]) agg_flow torch.Size([1, 3, 128, 128, 128])
+
+    image2_warped = F.interpolate(image2_warped, size=nii_array.shape, mode='trilinear')
+    label2_warped = F.interpolate(label2_warped, size=nii_array.shape, mode='trilinear')
+    agg_flow = F.interpolate(agg_flow, size=nii_array.shape, mode='trilinear')
+    # print(f"image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
+    # image2_warped torch.Size([1, 1, 15, 288, 232]) label2_warped torch.Size([1, 1, 15, 288, 232]) agg_flow torch.Size([1, 3, 15, 288, 232])
+    
+    image2_warped_np = image2_warped.detach().cpu().numpy().squeeze()
+    label2_warped_np = label2_warped.detach().cpu().numpy().squeeze()
+    agg_flow_np = agg_flow.detach().cpu().numpy().squeeze().transpose(1, 2, 3, 0)
+    # print(f"image2_warped_np {image2_warped_np.shape} label2_warped_np {label2_warped_np.shape} agg_flow_np {agg_flow_np.shape}")
+    # image2_warped_np (15, 288, 232) label2_warped_np (15, 288, 232) agg_flow_np (15, 288, 232, 3)
+
+    shape_img = data_in.GetSize()
+    ED_origin = data_in.GetOrigin()
+    ED_direction = data_in.GetDirection()
+    ED_spacing = data_in.GetSpacing()
+    # print(f"nii_array {nii_array.shape} shape_img {shape_img}")
+    # nii_array (8, 256, 216) shape_img (216, 256, 8)
+
+    savedSample_img = sitk.GetImageFromArray(image2_warped_np)
+    savedSample_seg = sitk.GetImageFromArray(np.around(label2_warped_np))
+    savedSample_defm = sitk.GetImageFromArray(agg_flow_np)
+    
+    savedSample_img.SetOrigin(ED_origin)
+    savedSample_seg.SetOrigin(ED_origin)
+    savedSample_defm.SetOrigin(ED_origin)
+    
+    savedSample_img.SetDirection(ED_direction)
+    savedSample_seg.SetDirection(ED_direction)
+    savedSample_defm.SetDirection(ED_direction)
+    
+    savedSample_img.SetSpacing(ED_spacing)
+    savedSample_seg.SetSpacing(ED_spacing)
+    savedSample_defm.SetSpacing(ED_spacing)
+    
+    warped_img_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_img.nii.gz')
+    warped_seg_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_seg.nii.gz')
+    warped_flow_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_deform.nii.gz')
+    
+    sitk.WriteImage(savedSample_img, warped_img_path)
+    sitk.WriteImage(savedSample_seg, warped_seg_path)
+    sitk.WriteImage(savedSample_defm, warped_flow_path)
+
+    # print(f"warped_img_path {warped_img_path}")
+    # print(f"warped_seg_path {warped_seg_path}")
+    # print(f"warped_flow_path {warped_flow_path}")
+    # warped_img_path /mnt/lhz/Github/Image_registration/SDHNet_checkpoints/ACDC_2024-11-04-22-16-53/eval/patient147_frame09_ep1_warped_img.nii.gz
+    # warped_seg_path /mnt/lhz/Github/Image_registration/SDHNet_checkpoints/ACDC_2024-11-04-22-16-53/eval/patient147_frame09_ep1_warped_seg.nii.gz
+    # warped_flow_path /mnt/lhz/Github/Image_registration/SDHNet_checkpoints/ACDC_2024-11-04-22-16-53/eval/patient147_frame09_ep1_warped_deform.nii.gz
+
+
 class Logger:
     def __init__(self, model, scheduler, Logging, args):
         self.model = model
@@ -140,14 +198,13 @@ class Logger:
         self.total_steps = 0
         self.running_loss = {}
         self.sum_freq = args.sum_freq
+        self.Logging = Logging
 
     def _print_training_status(self):
         metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps + 1, self.scheduler.get_lr()[0])
-        # print(training_str + "".join(metrics_data), file=args.files, flush=True)
-        # print(training_str + "".join(metrics_data))
-        Logging.info(training_str + "".join(metrics_data))
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
+        self.Logging.info(training_str + "".join(metrics_data))
 
         for key in self.running_loss:
             self.running_loss[key] = 0.0
@@ -161,30 +218,16 @@ class Logger:
 
             self.running_loss[key] = self.running_loss[key] + metrics[key]
 
-        if self.total_steps % self.sum_freq == self.sum_freq - 1:
-            if args.local_rank == 0:
-                self._print_training_status()
-            self.running_loss = {}
+        # if self.total_steps % self.sum_freq == self.sum_freq - 1:
+        #     if args.local_rank == 0:
+        #         self._print_training_status()
+        #     self.running_loss = {}
+        self._print_training_status()
+        self.running_loss = {}
 
 
 def mask_class(label, value):
     return (torch.abs(label - value) < 0.5).float() * 255.0
-
-
-def mask_metrics(seg1, seg2):
-    sizes = np.prod(seg1.shape[1:])
-    # seg1 = (seg1.view(-1, sizes) > 128).type(torch.float32)
-    # seg2 = (seg2.view(-1, sizes) > 128).type(torch.float32)
-    seg1 = (seg1.contiguous().view(-1, sizes) > 128).type(torch.float32)
-    seg2 = (seg2.contiguous().view(-1, sizes) > 128).type(torch.float32)
-    dice_score = 2.0 * torch.sum(seg1 * seg2, 1) / (torch.sum(seg1, 1) + torch.sum(seg2, 1))
-
-    union = torch.sum(torch.max(seg1, seg2), 1)
-    iden = (torch.ones(*union.shape) * 0.01).cuda()
-    jacc_score = torch.sum(torch.min(seg1, seg2), 1) / torch.max(iden, union)
-
-    return dice_score, jacc_score
-
 
 def jacobian_det(flow):
     bias_d = np.array([0, 0, 1])
@@ -199,352 +242,95 @@ def jacobian_det(flow):
     jd = np.sum(jacobian_det_volume <= 0)
     return jd
 
+def mask_metrics(seg1, seg2):
+    sizes = np.prod(seg1.shape[1:])
+    seg1 = (seg1.view(-1, sizes) > 128).type(torch.float32)
+    seg2 = (seg2.view(-1, sizes) > 128).type(torch.float32)
+    dice_score = 2.0 * torch.sum(seg1 * seg2, 1) / (torch.sum(seg1, 1) + torch.sum(seg2, 1))
 
-def jacobian_determinant(disp):
-    disp = np.expand_dims(disp.transpose(3, 2, 1, 0), 0)
-    # print(f"jacobian_determinant disp: {disp.shape}")
-    # jacobian_determinant disp: (1, 3, 160, 192, 160)
-    _, _, H, W, D = disp.shape
-    disp_one = disp[0][0]
-    
-    gradx  = np.array([-0.5, 0, 0.5]).reshape(1, 3, 1, 1)
-    grady  = np.array([-0.5, 0, 0.5]).reshape(1, 1, 3, 1)
-    gradz  = np.array([-0.5, 0, 0.5]).reshape(1, 1, 1, 3)
+    union = torch.sum(torch.max(seg1, seg2), 1)
+    iden = (torch.ones(*union.shape) * 0.01).cuda()
+    jacc_score = torch.sum(torch.min(seg1, seg2), 1) / torch.max(iden, union)
 
-    gradx_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], gradx, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], gradx, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], gradx, mode='constant', cval=0.0)], axis=1)
-    
-    grady_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], grady, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], grady, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], grady, mode='constant', cval=0.0)], axis=1)
-    
-    gradz_disp = np.stack([scipy.ndimage.correlate(disp[:, 0, :, :, :], gradz, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 1, :, :, :], gradz, mode='constant', cval=0.0),
-                           scipy.ndimage.correlate(disp[:, 2, :, :, :], gradz, mode='constant', cval=0.0)], axis=1)
-
-    grad_disp = np.concatenate([gradx_disp, grady_disp, gradz_disp], 0)
-
-    jacobian = grad_disp + np.eye(3, 3).reshape(3, 3, 1, 1, 1)
-    jacobian = jacobian[:, :, 2:-2, 2:-2, 2:-2]
-    jacdet = jacobian[0, 0, :, :, :] * (jacobian[1, 1, :, :, :] * jacobian[2, 2, :, :, :] - jacobian[1, 2, :, :, :] * jacobian[2, 1, :, :, :]) -\
-             jacobian[1, 0, :, :, :] * (jacobian[0, 1, :, :, :] * jacobian[2, 2, :, :, :] - jacobian[0, 2, :, :, :] * jacobian[2, 1, :, :, :]) +\
-             jacobian[2, 0, :, :, :] * (jacobian[0, 1, :, :, :] * jacobian[1, 2, :, :, :] - jacobian[0, 2, :, :, :] * jacobian[1, 1, :, :, :])
-    # return jacdet
-    nonpjacdet = np.sum(jacdet <= 0)/np.prod(disp_one.shape)
-    return nonpjacdet
-
-# https://docs.monai.io/en/stable/metrics.html
-# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
-def Dice(pred, gt):
-    # intersection = np.logical_and(gt, pred)
-    # union = np.logical_or(gt, pred)
-    # dice = 2 * (intersection + smooth)/(mask_sum + smooth)
-    smooth = 0.001
-    intersection = np.logical_and(pred, gt)
-    mask_sum =  np.sum(np.abs(pred)) + np.sum(np.abs(gt))
-    # dice = 2.0 * torch.sum(torch.masked_select(y, y_pred))) / (y_o + torch.sum(y_pred))
-    dice = 2.0 * (np.sum(intersection) + smooth) / (mask_sum + smooth)
-    return dice
-
-# https://github.com/OldaKodym/evaluation_metrics/blob/master/metrics.py
-def __surface_distances(result, reference, voxelspacing=None, connectivity=1):
-    """
-    The distances between the surface voxel of binary objects in result and their
-    nearest partner surface voxel of a binary object in reference.
-    """
-    result = np.atleast_1d(result.astype(np.bool_))
-    reference = np.atleast_1d(reference.astype(np.bool_))
-    if voxelspacing is not None:
-        voxelspacing = _ni_support._normalize_sequence(voxelspacing, result.ndim)
-        voxelspacing = np.asarray(voxelspacing, dtype=np.float64)
-        if not voxelspacing.flags.contiguous:
-            voxelspacing = voxelspacing.copy()
-    # binary structure
-    footprint = generate_binary_structure(result.ndim, connectivity)
-    # test for emptiness
-    if 0 == np.count_nonzero(result): 
-        raise RuntimeError('The first supplied array does not contain any binary object.')
-    if 0 == np.count_nonzero(reference): 
-        raise RuntimeError('The second supplied array does not contain any binary object.')    
-    # extract only 1-pixel border line of objects
-    result_border = result ^ binary_erosion(result, structure=footprint, iterations=1)
-    reference_border = reference ^ binary_erosion(reference, structure=footprint, iterations=1)
-    # compute average surface distance        
-    # Note: scipys distance transform is calculated only inside the borders of the
-    #       foreground objects, therefore the input has to be reversed
-    dt = distance_transform_edt(~reference_border, sampling=voxelspacing)
-    sds = dt[result_border]
-    return sds
-
-def hd95(result, reference, voxelspacing=None, connectivity=1):
-    """
-    95th percentile of the Hausdorff Distance.
-    """
-    hd1 = __surface_distances(result, reference, voxelspacing, connectivity)
-    hd2 = __surface_distances(reference, result, voxelspacing, connectivity)
-    hd95 = np.percentile(np.hstack((hd1, hd2)), 95)
-    return hd95
-
-# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
-def IOU(pred, gt, classes=1):
-    '''
-    Intersection over Union (IoU) and Jaccard coefficients (or indices)
-    The Jaccard index is also known as Intersection over Union (IoU)
-    '''
-    smooth = 0.001
-    intersection = np.logical_and(gt, pred)
-    union = np.logical_or(gt, pred)
-    iou = (np.sum(intersection) + smooth) / (np.sum(union) + smooth)
-    return iou
-
-# https://github.com/JHU-MedImage-Reg/LUMIR_L2R/blob/ecfd6f368e9c8e64417120ddbe06562054757a89/L2R_LUMIR_Eval/utils.py
-def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
-    '''
-    Target Registration Error (TRE)
-    '''
-    x = np.linspace(0, fx_lms.shape[0] - 1, fx_lms.shape[0])
-    y = np.linspace(0, fx_lms.shape[1] - 1, fx_lms.shape[1])
-    z = np.linspace(0, fx_lms.shape[2] - 1, fx_lms.shape[2])
-    yv, xv, zv = np.meshgrid(y, x, z)
-    unique = np.unique(fx_lms)
-    smooth = 0.001
-    dfm_pos = np.zeros((len(unique) - 1, 3))
-    for i in range(1, len(unique)):
-        label = (dfm_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + smooth)
-        yc = np.sum(label * yv) / (np.sum(label) + smooth)
-        zc = np.sum(label * zv) / (np.sum(label) + smooth)
-        dfm_pos[i - 1, 0] = xc
-        dfm_pos[i - 1, 1] = yc
-        dfm_pos[i - 1, 2] = zc
-
-    fx_pos = np.zeros((len(unique) - 1, 3))
-    for i in range(1, len(unique)):
-        label = (fx_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + smooth)
-        yc = np.sum(label * yv) / (np.sum(label) + smooth)
-        zc = np.sum(label * zv) / (np.sum(label) + smooth)
-        fx_pos[i - 1, 0] = xc
-        fx_pos[i - 1, 1] = yc
-        fx_pos[i - 1, 2] = zc
-
-    dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
-    # print(('landmark error (vox): after {}'.format(dfm_fx_error)))
-    return dfm_fx_error
-
-
-def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
-    n_dice_list = []
-    n_hd95_list = []
-    n_iou_list = []
-    class_num = np.unique(gt)
-    pred_num = np.unique(pre)
-    # print(f"compute_per_class_Dice_HD95_IOU_TRE_NDV: {class_num} {pred_num}")
-
-    for c in class_num:
-        if c == 0: continue
-        # print(f"class_num {c}")
-        ngt_data = np.zeros_like(gt)
-        ngt_data[gt == c] = 1
-        npred_data = np.zeros_like(pre)
-        npred_data[pre == c] = 1
-        npred_data = 1 - ngt_data if 0 == np.count_nonzero(npred_data) else npred_data
-        # n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
-        n_dice = Dice(npred_data, ngt_data)
-        # print(f"ngt_data: {np.unique(ngt_data)} npred_data: {np.unique(npred_data)}")
-        n_hd95 = hd95(npred_data, ngt_data, voxelspacing = gtspacing[::-1])
-        n_iou = IOU(npred_data, ngt_data)
-        n_dice_list.append(n_dice)
-        n_hd95_list.append(n_hd95)
-        n_iou_list.append(n_iou)
-    mean_Dice = statistics.mean(n_dice_list)
-    mean_HD95 = statistics.mean(n_hd95_list)
-    mean_iou = statistics.mean(n_iou_list)
-    
-    tre = calc_TRE(ngt_data, npred_data)
-    return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
-
-
-
-def translabel(img):
-    seg_table = [0, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
-                    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
-                    66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
-                    101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
-    img_out = np.zeros_like(img)
-    for i in range(len(seg_table)):
-        img_out[img == i] = seg_table[i]
-    return img_out
+    return dice_score, jacc_score
 
 
 def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
     Dice, Jacc, Jacb = [], [], []
-    mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
+
+    Logging.info('Image pairs in evaluation: %d' % len(eval_dataset))
+    Logging.info('Evaluation steps: %s' % total_steps)
+    # Image pairs in evaluation: 50
+    # Evaluation steps: 1
+
     for i in range(len(eval_dataset)):
-        fpath = eval_dataset[i][0]
-        mov, fixed = eval_dataset[i][1][np.newaxis].cuda(), eval_dataset[i][2][np.newaxis].cuda()
-        mov_label, fixed_label = eval_dataset[i][3][np.newaxis].cuda(), eval_dataset[i][4][np.newaxis].cuda()
+        fixed, mov = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
+        fixed_label, mov_label = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
         # print(f"evaluate mov shape: {mov.shape} fixed shape: {fixed.shape}")
         # print(f"evaluate mov_label shape: {mov_label.shape} fixed_label shape: {fixed_label.shape}")
-        # evaluate mov shape: torch.Size([1, 1, 232, 288, 15]) fixed shape: torch.Size([1, 1, 232, 288, 15])
-        # evaluate mov_label shape: torch.Size([1, 1, 232, 288, 15]) fixed_label shape: torch.Size([1, 1, 232, 288, 15])
-        # print(f"evaluate mov_label: {torch.unique(mov_label)}")
-        # print(f"evaluate fixed_label: {torch.unique(fixed_label)}")
+        # evaluate mov shape: torch.Size([1, 1, 8, 256, 216]) fixed shape: torch.Size([1, 1, 8, 256, 216])
+        # evaluate mov_label shape: torch.Size([1, 1, 8, 256, 216]) fixed_label shape: torch.Size([1, 1, 8, 256, 216])
 
-        image1 = F.interpolate(mov, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-        image2 = F.interpolate(fixed, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-        label1 = F.interpolate(mov_label, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-        label2 = F.interpolate(fixed_label, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
-        # print(f"transpose mov shape: {image1.shape} fixed shape: {image2.shape}")
-        # print(f"transpose mov_label shape: {label1.shape} fixed_label shape: {label2.shape}")
-        # transpose mov shape: torch.Size([1, 1, 80, 80, 80]) fixed shape: torch.Size([1, 1, 80, 80, 80])
-        # transpose mov_label shape: torch.Size([1, 1, 80, 80, 80]) fixed_label shape: torch.Size([1, 1, 80, 80, 80])
-        label1, label2 = torch.round(label1), torch.round(label2)
-        # print(f"mov label: {torch.unique(label1)}")
-        # mov label: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
-        #                   14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
-        #                   28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
-        #                   42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55., 56.], device='cuda:0')
-        # print(f"fixed label: {torch.unique(label2)}")
-        # fixed label: tensor([ 0.,  1.,  2.,  3.,  4.,  5.,  6.,  7.,  8.,  9., 10., 11., 12., 13.,
-        #                       14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25., 26., 27.,
-        #                       28., 29., 30., 31., 32., 33., 34., 35., 36., 37., 38., 39., 40., 41.,
-        #                       42., 43., 44., 45., 46., 47., 48., 49., 50., 51., 52., 53., 54., 55., 56.], device='cuda:0')
+        image1 = F.interpolate(fixed, size=img_size, mode='trilinear')
+        image2 = F.interpolate(mov, size=img_size, mode='trilinear')
+        label1 = F.interpolate(fixed_label, size=img_size, mode='trilinear')
+        label2 = F.interpolate(mov_label, size=img_size, mode='trilinear')
+        # print(f"transpose fixed shape: {image1.shape} mov shape: {image2.shape}")
+        # print(f"transpose fixed_label shape: {label1.shape} mov_label shape: {label2.shape}")
+        # transpose fixed shape: torch.Size([1, 1, 128, 128, 128]) mov shape: torch.Size([1, 1, 128, 128, 128])
+        # transpose fixed_label shape: torch.Size([1, 1, 128, 128, 128]) mov_label shape: torch.Size([1, 1, 128, 128, 128])
 
         with torch.no_grad():
-            # _, _, _, agg_flow, _ = model.module(image1, image2, augment=False)
-            _, _, _, agg_flow, _ = model(image2, image1, augment=False)
+            _, _, _, agg_flow, _ = model(image1, image2, augment=False)
+            image2_warped = warp3D()(image2, agg_flow)
+            label2_warped = warp3D()(label2, agg_flow)
 
-            # print(f"eval_dataset seg_values: {eval_dataset.seg_values}")
-            # eval_dataset seg_values: [0 1 2 3]
-            image1_warped = warp3D()(image1, agg_flow)
-            # print(f"transpose mov shape: {image1.shape} fixed shape: {image2.shape}")
-            # transpose mov shape: torch.Size([1, 1, 80, 80, 80]) fixed shape: torch.Size([1, 1, 80, 80, 80])
-            label1_warped = warp3D()(label1, agg_flow)
-            # print(f"warp_seg: {torch.unique(label1_warped)}")
-            # warp_seg: tensor([0.0000e+00, 1.1788e-05, 7.0557e-05,  ..., 3.0000e+00, 3.0000e+00, 3.0000e+00], device='cuda:0')
+        jaccs = []
+        dices = []
 
-            name = fpath.split('/')[-1].split('.')[0]
-            # print(f"register mov_path: {mov_path}")
-            data_in = sitk.ReadImage(fpath)
-            shape_img = data_in.GetSize()
-            # print(f"shape_img: {shape_img}")  # (Width, Height, Depth)
-            # shape_img: (232, 288, 15)
-            ED_origin = data_in.GetOrigin()
-            ED_direction = data_in.GetDirection()
-            ED_spacing = data_in.GetSpacing()
+        for v in eval_dataset.seg_values:
+            label1_fixed = mask_class(label1, v)
+            # label2_warped = warp3D()(mask_class(label2, v), agg_flow)
+            label2_in = mask_class(label2, v)
+            label2_v = warp3D()(label2_in, agg_flow)
+            # print(f"evaluate label1_fixed {label1_fixed.shape} label2_warped {label2_v.shape}")
+            # evaluate label1_fixed torch.Size([1, 1, 128, 128, 128]) label2_warped torch.Size([1, 1, 128, 128, 128])
+            # print(f"evaluate label1_fixed max {label1_fixed.max()} min {label1_fixed.min()} label2_in max {label2_in.max()} min {label2_in.min()}")
+            # evaluate label1_fixed max 255.0 min 0.0 label2_in max 255.0 min 0.0
+            # print(f"evaluate label2_v max {label2_v.max()} min {label2_v.min()}")
+            # evaluate label2_v max 255.0000457763672 min 0.0
+            class_dice, class_jacc = mask_metrics(label1_fixed, label2_v)
 
-            # warp_img = F.interpolate(image1_warped, size=shape_img, mode='trilinear')
-            warp_img = F.interpolate(image1_warped, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
-            # warp_img_array = warp_img.detach().cpu().numpy().squeeze().transpose(2, 1, 0)
-            warp_img_array = warp_img.detach().cpu().numpy().squeeze()
-            
-            # warp_seg = F.interpolate(label1_warped, size=shape_img, mode='trilinear')
-            warp_seg = F.interpolate(label1_warped, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
-            # warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().transpose(2, 1, 0).astype(np.uint8)
-            warp_seg_array = warp_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
-            print(f"warp_seg label: {np.unique(warp_seg_array)}")
-            # warp_seg label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-            # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
-            # 48 49 50 51 52 53 54 55 56]
-            warp_seg_array_reori = translabel(warp_seg_array)
-            print(f"warp_seg_array_reori label: {np.unique(warp_seg_array_reori)}")
-            # warp_seg_array_reori label: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
-            # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
-            # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
-            # 166 181 182]
+            dices.append(class_dice)
+            jaccs.append(class_jacc)
 
-            label2_seg = F.interpolate(label2, size=(shape_img[2], shape_img[1], shape_img[0]), mode='trilinear')
-            gt_seg_array = label2_seg.detach().cpu().numpy().squeeze().astype(np.uint8)
-            print(f"gt_seg_array label: {np.unique(gt_seg_array)}")
-            # gt_seg_array label: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-            # 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
-            # 48 49 50 51 52 53 54 55 56]
+        jacb = jacobian_det(agg_flow.cpu().numpy()[0])
 
-            # print(f"evaluate warp: {warp_seg_array_reori.shape} gt: {gt_seg_array.shape}")
-            # evaluate warp: (160, 192, 160) gt: (160, 192, 160)
-            tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
-            
-            savedSample_warped = sitk.GetImageFromArray(warp_img_array)
-            savedSample_seg = sitk.GetImageFromArray(warp_seg_array_reori)
-            # savedSample_defm = sitk.GetImageFromArray(deform)
-            
-            savedSample_warped.SetOrigin(ED_origin)
-            savedSample_seg.SetOrigin(ED_origin)
-            # savedSample_defm.SetOrigin(ED_origin)
-            
-            savedSample_warped.SetDirection(ED_direction)
-            savedSample_seg.SetDirection(ED_direction)
-            # savedSample_defm.SetDirection(ED_direction)
-            
-            savedSample_warped.SetSpacing(ED_spacing)
-            savedSample_seg.SetSpacing(ED_spacing)
-            # savedSample_defm.SetSpacing(ED_spacing)
-            
-            warped_img_path = os.path.join(args.eval_path, name + '_step' + str(total_steps) + '_warped_img.nii.gz')
-            warped_seg_path = os.path.join(args.eval_path, name + '_step' + str(total_steps) + '_warped_seg.nii.gz')
-            # warped_flow_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_deformflow.nii.gz')
-            
-            sitk.WriteImage(savedSample_warped, warped_img_path)
-            sitk.WriteImage(savedSample_seg, warped_seg_path)
-            # sitk.WriteImage(savedSample_defm, warped_flow_path)
+        dice = torch.mean(torch.cuda.FloatTensor(dices)).cpu().numpy()
+        jacc = torch.mean(torch.cuda.FloatTensor(jaccs)).cpu().numpy()
+        
+        Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   jacb:{:10.2f}'.
+                    format(i, dice, jacc, jacb))
 
-            jaccs = []
-            dices = []
-            # print(f"eval_dataset value: {eval_dataset.seg_values}")
-            for v in eval_dataset.seg_values:
-                if v == 0: continue
-                label2_c = mask_class(label2, v)
-                label1_warped_c = warp3D()(mask_class(label1, v), agg_flow)
-                class_dice, class_jacc = mask_metrics(label1_warped_c, label2_c)
-                dices.append(class_dice)
-                jaccs.append(class_jacc)
+        save_samples(args, total_steps, image2_warped, label2_warped, agg_flow, eval_dataset[i][4])
 
-            jacb = jacobian_det(agg_flow.cpu().numpy()[0])
-
-            dice = torch.mean(torch.cuda.FloatTensor(dices)).cpu().numpy()
-            jacc = torch.mean(torch.cuda.FloatTensor(jaccs)).cpu().numpy()
+        Dice.append(dice)
+        Jacc.append(jacc)
+        Jacb.append(jacb)
             
-            # Logging.info(f'Total_steps: {total_steps} Pair: {i:6d}/{len(eval_dataset):6d} dice:{dice:10.6f} jacc:{jacc:10.6f} jacb:{jacb:10.2f}')
-            Logging.info(f'Total_steps: {total_steps} Pair: {i:d}/{len(eval_dataset):d} dice:{dice:.6f} jacc:{jacc:.6f} jacb:{jacb:.6f}')
-            
-            Dice.append(dice)
-            Jacc.append(jacc)
-            Jacb.append(jacb)
-
-            Logging.info(f"Total steps: {total_steps} {name} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
-            Logging.info(f"Total steps: {total_steps} {name} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
-            Logging.info(f"Total steps: {total_steps} {name} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-            # Logging.info(f"Total steps: {total_steps} {name} jacobian_determinant - {jd}")
-            
-            mdice_list.append(mdice)
-            mhd95_list.append(mhd95)
-            mIOU_list.append(mIOU)
-            tre_list.append(tre)
-            # jd_list.append(jd)
-
     dice_mean, dice_std = np.mean(np.array(Dice)), np.std(np.array(Dice))
     jacc_mean, jacc_std = np.mean(np.array(Jacc)), np.std(np.array(Jacc))
     jacb_mean, jacb_std = np.mean(np.array(Jacb)), np.std(np.array(Jacb))
 
-    # Logging.info(f'Total_steps {total_steps:12d} ---> \
-    #             Dice:{dice_mean:10.6f}({dice_std:10.6f}) \
-    #             Jacc:{jacc_mean:10.6f}({jacc_std:10.6f}) \
-    #             Jacb:{jacb_mean:10.2f}({jacb_std:10.2f})')
-    Logging.info(f'Total_steps {total_steps:d} ---> \
-                Dice:{dice_mean:.6f}({dice_std:.6f}) \
-                Jacc:{jacc_mean:.6f}({jacc_std:.6f}) \
-                Jacb:{jacb_mean:.6f}({jacb_std:.6f})')
+    Logging.info('Summary --->  '
+                    'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                    'Jacb:{:10.2f}({:10.2f})'
+                    .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std))
 
-    Logging.info(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-
-    cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-    cur_meanTre = np.mean(tre_list)
-    # cur_meanjd = np.mean(jd_list)
-    
-    Logging.info(f"Total steps: {total_steps} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre}")    
-    # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
+    Logging.info('Step{:12d} --->  '
+                    'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+                    'Jacb:{:10.2f}({:10.2f})'
+                    .format(total_steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std))
 
 
 def train(args, Logging):
@@ -556,8 +342,8 @@ def train(args, Logging):
     # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], find_unused_parameters=True)
 
     train_loader = fetch_dataloader(args, Logging)
-    # img_size = (160, 192, 160)
-    # img_size = (80, 80, 80)
+    # img_size = (232, 256, 10)
+    # img_size = (64, 64, 64)
     img_size = (128, 128, 128)
 
     optimizer, scheduler = fetch_optimizer(args, model)
@@ -579,10 +365,11 @@ def train(args, Logging):
             # transpose image1 shape: torch.Size([1, 1, 8, 512, 428]) image2 shape: torch.Size([1, 1, 8, 512, 428])
             # transpose image1 shape: torch.Size([1, 1, 80, 80, 80]) image2 shape: torch.Size([1, 1, 80, 80, 80])
 
-            # image2_aug, affines, deforms, agg_flow, agg_flows = model(image1, image2)
-            image1_aug, affines, deforms, agg_flow, agg_flows = model(image2, image1)
+            image2_aug, affines, deforms, agg_flow, agg_flows = model(image1, image2)
+            # image1_aug, affines, deforms, agg_flow, agg_flows = model(image2, image1)
 
-            loss, metrics = fetch_loss(affines, deforms, agg_flow, image1_aug, image2)
+            # loss, metrics = fetch_loss(affines, deforms, agg_flow, image1_aug, image2)
+            loss, metrics = fetch_loss(affines, deforms, agg_flow, image1, image2_aug)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -591,18 +378,20 @@ def train(args, Logging):
             total_steps = total_steps + 1
 
             logger.push(metrics)
-            Logging.info(f"Steps: {total_steps} / {args.num_steps} total loss: {loss:.4f} —— aff_loss: {metrics['aff_loss']:.4f} sim_loss: {metrics['sim_loss']:.4f} reg_loss: {metrics['reg_loss']:.4f}")
+            # Logging.info(f"Steps: {total_steps} / {args.num_steps} total loss: {loss:.4f} —— aff_loss: {metrics['aff_loss']:.4f} sim_loss: {metrics['sim_loss']:.4f} reg_loss: {metrics['reg_loss']:.4f}")
 
             # if total_steps % args.val_freq == args.val_freq - 1:
-            if total_steps % args.val_freq == 0:
+            # if total_steps % args.val_freq == 0:
+            if total_steps % args.val_freq == 1:
+                model.eval()
+                eval_dataset = datasets.LPBATest(args)
+                evaluate(args, Logging, eval_dataset, img_size, model, total_steps)
+
                 # PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps + 1)
                 PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps)
                 torch.save(model.state_dict(), PATH)
 
-                eval_dataset = datasets.LPBATest(args)
-                evaluate(args, Logging, eval_dataset, img_size, model, total_steps)
-
-            if total_steps == args.num_steps:
+            if total_steps == args.num_steps + 1:
                 should_keep_training = False
                 break
 
@@ -611,7 +400,6 @@ def train(args, Logging):
     torch.save(model.state_dict(), PATH)
 
     # return PATH
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -623,7 +411,7 @@ if __name__ == '__main__':
     parser.add_argument('--clip', type=float, default=1.0)
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=1000)
-    parser.add_argument('--val_freq', type=int, default=1000) # 2000
+    parser.add_argument('--val_freq', type=int, default=50000) # 2000
     parser.add_argument('--round', type=int, default=20000, help='number of batches per epoch')
     # parser.add_argument('--data_path', type=str, default='E:/Registration/Code/TMI2022/Github/Data_MRIBrain/')
     parser.add_argument('--data_path', type=str, default='/mnt/lhz/Github/Image_registration/SDHNet/images/')
