@@ -11,8 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.distributed as dist
-import torch.nn.functional as F
-
 import core.datasets as datasets
 import core.losses as losses
 from core.utils.warp import warp3D
@@ -145,14 +143,14 @@ def fetch_optimizer(args, model):
 def save_samples(args, steps, image2_warped, label2_warped, agg_flow, img_path):
     # print(f"save_samples img_path {img_path}")
     # save_samples img_path /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient142/patient142_frame01.nii.gz
-    index = img_path.split('/')[-1].split('.')[0]
+    index = img_path.split('/')[-1][:10]
     data_in = sitk.ReadImage(img_path)
     nii_array = sitk.GetArrayFromImage(data_in)
     # print(f"image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
     # image2_warped torch.Size([1, 1, 192, 224, 160]) label2_warped torch.Size([1, 1, 192, 224, 160]) agg_flow torch.Size([1, 3, 192, 224, 160])
-    image2_warped = F.interpolate(image2_warped, size=nii_array.shape, mode='trilinear')
-    label2_warped = F.interpolate(label2_warped, size=nii_array.shape, mode='trilinear')
-    agg_flow = F.interpolate(agg_flow, size=nii_array.shape, mode='trilinear')
+    # image2_warped = F.interpolate(image2_warped, size=nii_array.shape, mode='trilinear')
+    # label2_warped = F.interpolate(label2_warped, size=nii_array.shape, mode='trilinear')
+    # agg_flow = F.interpolate(agg_flow, size=nii_array.shape, mode='trilinear')
     # print(f"image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
     # image2_warped torch.Size([1, 1, 15, 288, 232]) label2_warped torch.Size([1, 1, 15, 288, 232]) agg_flow torch.Size([1, 3, 15, 288, 232])
     image2_warped_np = image2_warped.detach().cpu().numpy().squeeze()
@@ -187,10 +185,7 @@ def save_samples(args, steps, image2_warped, label2_warped, agg_flow, img_path):
     warped_img_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_img.nii.gz')
     warped_seg_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_seg.nii.gz')
     warped_flow_path = os.path.join(args.eval_path, index + '_ep' + str(steps) + '_warped_deform.nii.gz')
-    print(f"Saving img to: {warped_img_path}")
-    print(f"Saving seg to: {warped_seg_path}")
-    print(f"Saving deform to: {warped_flow_path}")
-
+    
     sitk.WriteImage(savedSample_img, warped_img_path)
     sitk.WriteImage(savedSample_seg, warped_seg_path)
     sitk.WriteImage(savedSample_defm, warped_flow_path)
@@ -206,9 +201,9 @@ class Logger:
         self.Logging = Logging
 
     def _print_training_status(self):
-        metrics_data = ["{ " + k + ": {:10.5f}".format(self.running_loss[k] / self.sum_freq) + " } "
+        metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps: {:d} / {:d}, Lr: {:.7f}] ".format(self.total_steps, args.num_steps, self.scheduler.get_lr()[0])
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
         # print(training_str + "".join(metrics_data), file=args.files, flush=True)
         self.Logging.info(training_str + "".join(metrics_data))
         for key in self.running_loss:
@@ -231,13 +226,14 @@ class Logger:
         self.running_loss = {}
 
 
-def evaluate_LPBA(args, model, steps, Logging, type):
+def evaluate_OASIS(args, model, steps, Logging, type):
     Dice, Jacc, Jacb, Time = [], [], [], []
-    eval_dataset = datasets.LPBATest(args)
+    eval_dataset = datasets.OASISTest(args)
 
     Logging.info('Image pairs in evaluation: %d' % len(eval_dataset))
     Logging.info('Evaluation steps: %s' % steps)
     Logging.info('Model Type: %s' % type)
+    # count_parameters(model, Logging, type="teacher")
 
     for i in range(len(eval_dataset)):
         # image1, image2 = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
@@ -245,20 +241,14 @@ def evaluate_LPBA(args, model, steps, Logging, type):
         # image1-fixed image2-moving
         image1, image2  = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
         label1, label2 = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
-        # print(f"evaluate_ACDC image1 {image1.shape} image2 {image2.shape}")
-        # evaluate_ACDC image1 torch.Size([1, 1, 9, 256, 214]) image2 torch.Size([1, 1, 9, 256, 214])
-        # print(f"evaluate_ACDC image1 max {image1.max()} min {image1.min()} image2 max {image2.max()} min {image2.min()}")
-        # evaluate_ACDC image1 max 255.0 min 0.0 image2 max 255.0 min 0.0
-        # print(f"evaluate_ACDC label1 {label1.shape} label2 {label2.shape}")
-        # evaluate_ACDC label1 torch.Size([1, 1, 9, 256, 214]) label2 torch.Size([1, 1, 9, 256, 214])
-        # print(f"evaluate_ACDC label1 max {label1.max()} min {label1.min()} label2 max {label2.max()} min {label2.min()}")
-        # evaluate_ACDC label1 max 3.0 min 0.0 label2 max 3.0 min 0.0
-        image1 = F.interpolate(image1.float(), size=[192, 224, 160], mode='trilinear')
-        image2 = F.interpolate(image2.float(), size=[192, 224, 160], mode='trilinear')
-        # print(f"evaluate_ACDC image1 {image1.shape} image2 {image2.shape}")
-        label1 = F.interpolate(label1.float(), size=[192, 224, 160], mode='trilinear')
-        label2 = F.interpolate(label2.float(), size=[192, 224, 160], mode='trilinear')
-        # print(f"evaluate_ACDC label1 {label1.shape} label2 {label2.shape}")
+        # print(f"evaluate_OASIS image1 {image1.shape} image2 {image2.shape}")
+        # evaluate_OASIS image1 torch.Size([1, 1, 192, 224, 160]) image2 torch.Size([1, 1, 192, 224, 160])
+        # print(f"evaluate_OASIS image1 max {image1.max()} min {image1.min()} image2 max {image2.max()} min {image2.min()}")
+        # evaluate_OASIS image1 max 0.8627451062202454 min 0.0 image2 max 0.7960784435272217 min 0.0
+        # print(f"evaluate_OASIS label1 {label1.shape} label2 {label2.shape}")
+        # evaluate_OASIS label1 torch.Size([1, 1, 192, 224, 160]) label2 torch.Size([1, 1, 192, 224, 160])
+        # print(f"evaluate_OASIS label1 max {label1.max()} min {label1.min()} label2 max {label2.max()} min {label2.min()}")
+        # evaluate_OASIS label1 max 35.0 min 0.0 label2 max 35.0 min 0.0
 
         with torch.no_grad():
             start = time.time()
@@ -266,7 +256,7 @@ def evaluate_LPBA(args, model, steps, Logging, type):
             _, _, _, agg_flow = model(image1, image2)
             end = time.time()
             times = end - start
-
+        
         image2_warped = warp3D()(image2, agg_flow)
         label2_flow = warp3D()(label2, agg_flow)
 
@@ -281,12 +271,10 @@ def evaluate_LPBA(args, model, steps, Logging, type):
             # label2_warped = warp3D()(mask_class(label2, v), agg_flow)
             label2_in = mask_class(label2, v)
             label2_warped = warp3D()(label2_in, agg_flow)
-            # print(f"evaluate_ACDC label1_fixed {label1_fixed.shape} label2_warped {label2_warped.shape}")
-            # evaluate_ACDC label1_fixed torch.Size([1, 1, 15, 288, 232]) label2_warped torch.Size([1, 1, 15, 288, 232])
-            # print(f"evaluate_ACDC label1_fixed max {label1_fixed.max()} min {label1_fixed.min()} label2_in max {label2_in.max()} min {label2_in.min()}")
+            # print(f"evaluate_OASIS label1_fixed max {label1_fixed.max()} min {label1_fixed.min()} label2_in max {label2_in.max()} min {label2_in.min()}")
             # evaluate_OASIS label1_fixed max 255.0 min 0.0 label2_in max 255.0 min 0.0
-            # print(f"evaluate_ACDC label2_warped max {label2_warped.max()} min {label2_warped.min()}")
-            # evaluate_OASIS label2_warped max 255.00003051757812 min 0.0
+            # print(f"evaluate_OASIS label2_warped max {label2_warped.max()} min {label2_warped.min()}")
+            # evaluate_OASIS label2_warped max 255.0000457763672 min 0.0
             class_dice, class_jacc = mask_metrics(label1_fixed, label2_warped)
 
             dices.append(class_dice)
@@ -303,11 +291,11 @@ def evaluate_LPBA(args, model, steps, Logging, type):
             #         file=f, flush=True)
             # print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
             #         format(i, dice, jacc, jacb, times))
-        Logging.info('Pair {:d}   dice: {:.6f}   jacc: {:.6f}   new_jacb: {:.2f}   time: {:.6f}'.
+        Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
                     format(i, dice, jacc, jacb, times))
 
         save_samples(args, steps, image2_warped, label2_flow, agg_flow, eval_dataset[i][4])
-
+        
         Dice.append(dice)
         Jacc.append(jacc)
         Jacb.append(jacb)
@@ -317,6 +305,26 @@ def evaluate_LPBA(args, model, steps, Logging, type):
     jacc_mean, jacc_std = np.mean(np.array(Jacc)), np.std(np.array(Jacc))
     jacb_mean, jacb_std = np.mean(np.array(Jacb)), np.std(np.array(Jacb))
     time_mean, time_std = np.mean(np.array(Time[1:])), np.std(np.array(Time[1:]))
+
+    # if args.local_rank == 0:
+        # print('Summary --->  '
+        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+        #         .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
+        #         file=f, flush=True)
+        # print('Summary --->  '
+        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+        #         .format(dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
+        # print('Step{:12d} --->  '
+        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+        #         .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std),
+        #         file=g, flush=True)
+        # print('Step{:12d} --->  '
+        #         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
+        #         'New_Jacb:{:10.2f}({:10.2f})   Time:{:10.6f}({:10.6f})'
+        #         .format(steps, dice_mean, dice_std, jacc_mean, jacc_std, jacb_mean, jacb_std, time_mean, time_std))
         
     Logging.info('Summary --->  '
         'Dice:{:10.6f}({:10.6f})   Jacc:{:10.6f}({:10.6f})  '
@@ -365,10 +373,6 @@ def train_teacher(args, Logging):
             model.train()
             # image1-fixed  image2-moving
             image1, image2 = [x.cuda() for x in data_blob]
-            # print(f"train_teacher image1 {image1.shape} image2 {image2.shape}")
-            # # train_teacher image1 torch.Size([1, 1, 9, 216, 256]) image2 torch.Size([1, 1, 9, 216, 256])
-            image1 = F.interpolate(image1.float(), size=[192, 224, 160], mode='trilinear')
-            image2 = F.interpolate(image2.float(), size=[192, 224, 160], mode='trilinear')
             # print(f"image1 {image1.shape} image2 {image2.shape}")
             # image1 torch.Size([1, 1, 192, 224, 160]) image2 torch.Size([1, 1, 192, 224, 160])
 
@@ -394,7 +398,7 @@ def train_teacher(args, Logging):
             if total_steps % args.val_freq == 1:
                 # if args.local_rank == 0:
                 model.eval()
-                evaluate_LPBA(args, model, total_steps, Logging, type="teacher")
+                evaluate_OASIS(args, model, total_steps, Logging, type="teacher")
                 PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps)
                 torch.save(model.state_dict(), PATH)
 
@@ -408,7 +412,7 @@ def train_teacher(args, Logging):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='LPBA', help='which dataset to use for training')
+    parser.add_argument('--dataset', type=str, default='OASIS', help='which dataset to use for training')
     parser.add_argument('--restore_teacher_ckpt', type=str, default=None, help='restore and train from this teacher checkpoint')
     parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
     parser.add_argument('--clip', type=float, default=1.0)
@@ -416,7 +420,7 @@ if __name__ == '__main__':
     parser.add_argument('--round', type=int, default=5000, help='number of batches per epoch')
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=10) # 50
-    parser.add_argument('--val_freq', type=int, default=20000) # 250 5000
+    parser.add_argument('--val_freq', type=int, default=10000) # 250 5000
     parser.add_argument('--local_rank', default=-1, type=int, help='node rank for distributed training')
     args = parser.parse_args()
 
@@ -453,7 +457,7 @@ if __name__ == '__main__':
     args.batch = args.batch
     args.num_steps = args.epoch * args.round
 
-    if args.dataset == "ACDC" or "OASIS" or "LPBA" or "OAIZIB":
+    if args.dataset == "ACDC" or "OASIS":
         # args.dataset_val = ['ACDC_val']
         args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/" 
     else:

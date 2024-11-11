@@ -206,9 +206,9 @@ class Logger:
         self.Logging = Logging
 
     def _print_training_status(self):
-        metrics_data = ["{ " + k + ": {:10.5f}".format(self.running_loss[k] / self.sum_freq) + " } "
+        metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps: {:d} / {:d}, Lr: {:.7f}] ".format(self.total_steps, args.num_steps, self.scheduler.get_lr()[0])
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
         # print(training_str + "".join(metrics_data), file=args.files, flush=True)
         self.Logging.info(training_str + "".join(metrics_data))
         for key in self.running_loss:
@@ -303,7 +303,7 @@ def evaluate_LPBA(args, model, steps, Logging, type):
             #         file=f, flush=True)
             # print('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
             #         format(i, dice, jacc, jacb, times))
-        Logging.info('Pair {:d}   dice: {:.6f}   jacc: {:.6f}   new_jacb: {:.2f}   time: {:.6f}'.
+        Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   new_jacb:{:10.2f}   time:{:10.6f}'.
                     format(i, dice, jacc, jacb, times))
 
         save_samples(args, steps, image2_warped, label2_flow, agg_flow, eval_dataset[i][4])
@@ -416,7 +416,7 @@ if __name__ == '__main__':
     parser.add_argument('--round', type=int, default=5000, help='number of batches per epoch')
     parser.add_argument('--batch', type=int, default=1, help='number of image pairs per batch on single gpu')
     parser.add_argument('--sum_freq', type=int, default=10) # 50
-    parser.add_argument('--val_freq', type=int, default=20000) # 250 5000
+    parser.add_argument('--val_freq', type=int, default=5000) # 250
     parser.add_argument('--local_rank', default=-1, type=int, help='node rank for distributed training')
     args = parser.parse_args()
 
@@ -453,7 +453,7 @@ if __name__ == '__main__':
     args.batch = args.batch
     args.num_steps = args.epoch * args.round
 
-    if args.dataset == "ACDC" or "OASIS" or "LPBA" or "OAIZIB":
+    if args.dataset == "ACDC" or "OASIS":
         # args.dataset_val = ['ACDC_val']
         args.data_path = "/mnt/lhz/Github/Image_registration/RDN/images/" 
     else:
