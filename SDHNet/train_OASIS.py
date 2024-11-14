@@ -201,9 +201,9 @@ class Logger:
         self.Logging = Logging
 
     def _print_training_status(self):
-        metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
+        metrics_data = ["{ " + k + ":{:.5f}".format(self.running_loss[k] / self.sum_freq) + " } "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
+        training_str = "[Steps: {:d} / {:d}, Lr:{:.7f}] ".format(self.total_steps, args.num_steps, self.scheduler.get_lr()[0])
         self.Logging.info(training_str + "".join(metrics_data))
 
         for key in self.running_loss:
@@ -344,7 +344,8 @@ def train(args, Logging):
     train_loader = fetch_dataloader(args, Logging)
     # img_size = (232, 256, 10)
     # img_size = (64, 64, 64)
-    img_size = (128, 128, 128)
+    # img_size = (128, 128, 128)
+    img_size = (96, 96, 96)
 
     optimizer, scheduler = fetch_optimizer(args, model)
 

@@ -114,8 +114,8 @@ def fetch_dataloader(args, Logging):
         train_dataset = datasets.LiverTrain(args)
     elif args.dataset == 'brain':
         train_dataset = datasets.BrainTrain(args)
-    elif args.dataset == 'ACDC':
-        train_dataset = datasets.ACDCTrain(args)
+    elif args.dataset == 'OASIS':
+        train_dataset = datasets.OASISTrain(args)
     else:
         print('Wrong Dataset')
 
@@ -134,15 +134,15 @@ def fetch_dataloader(args, Logging):
 def save_samples(args, steps, image2_warped, label2_warped, agg_flow, img_path):
     # print(f"save_samples img_path {img_path}")
     # save_samples img_path /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient142/patient142_frame01.nii.gz
-    index = img_path.split('/')[-1].split('.')[0]
+    index = img_path.split('/')[-1][:10]
     data_in = sitk.ReadImage(img_path)
     nii_array = sitk.GetArrayFromImage(data_in)
     # print(f"save_samples image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
     # save_samples image2_warped torch.Size([1, 1, 128, 128, 128]) label2_warped torch.Size([1, 1, 128, 128, 128]) agg_flow torch.Size([1, 3, 128, 128, 128])
 
-    image2_warped = F.interpolate(image2_warped, size=nii_array.shape, mode='nearest') # 'nearest' 'area' 'trilinear' 
-    label2_warped = F.interpolate(label2_warped, size=nii_array.shape, mode='nearest')
-    agg_flow = F.interpolate(agg_flow, size=nii_array.shape, mode='nearest')
+    image2_warped = F.interpolate(image2_warped, size=nii_array.shape, mode='trilinear')
+    label2_warped = F.interpolate(label2_warped, size=nii_array.shape, mode='trilinear')
+    agg_flow = F.interpolate(agg_flow, size=nii_array.shape, mode='trilinear')
     # print(f"image2_warped {image2_warped.shape} label2_warped {label2_warped.shape} agg_flow {agg_flow.shape}")
     # image2_warped torch.Size([1, 1, 15, 288, 232]) label2_warped torch.Size([1, 1, 15, 288, 232]) agg_flow torch.Size([1, 3, 15, 288, 232])
     
@@ -201,9 +201,9 @@ class Logger:
         self.Logging = Logging
 
     def _print_training_status(self):
-        metrics_data = ["{ " + k + ": {:10.5f}".format(self.running_loss[k] / self.sum_freq) + " } "
+        metrics_data = ["{" + k + ":{:10.5f}".format(self.running_loss[k] / self.sum_freq) + "} "
                         for k in self.running_loss.keys()]
-        training_str = "[Steps: {:d} / {:d}, Lr: {:10.7f}] ".format(self.total_steps, args.num_steps, self.scheduler.get_lr()[0])
+        training_str = "[Steps:{:9d}, Lr:{:10.7f}] ".format(self.total_steps, self.scheduler.get_lr()[0])
         self.Logging.info(training_str + "".join(metrics_data))
 
         for key in self.running_loss:
@@ -264,17 +264,17 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
     # Evaluation steps: 1
 
     for i in range(len(eval_dataset)):
-        fixed, moving = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
-        fixed_label, moving_label = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
+        fixed, mov = eval_dataset[i][0][np.newaxis].cuda(), eval_dataset[i][1][np.newaxis].cuda()
+        fixed_label, mov_label = eval_dataset[i][2][np.newaxis].cuda(), eval_dataset[i][3][np.newaxis].cuda()
         # print(f"evaluate mov shape: {mov.shape} fixed shape: {fixed.shape}")
         # print(f"evaluate mov_label shape: {mov_label.shape} fixed_label shape: {fixed_label.shape}")
         # evaluate mov shape: torch.Size([1, 1, 8, 256, 216]) fixed shape: torch.Size([1, 1, 8, 256, 216])
         # evaluate mov_label shape: torch.Size([1, 1, 8, 256, 216]) fixed_label shape: torch.Size([1, 1, 8, 256, 216])
 
-        image1 = F.interpolate(fixed, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear' 
-        image2 = F.interpolate(moving, size=img_size, mode='nearest')
-        label1 = F.interpolate(fixed_label, size=img_size, mode='nearest')
-        label2 = F.interpolate(moving_label, size=img_size, mode='nearest')
+        image1 = F.interpolate(fixed, size=img_size, mode='trilinear')
+        image2 = F.interpolate(mov, size=img_size, mode='trilinear')
+        label1 = F.interpolate(fixed_label, size=img_size, mode='trilinear')
+        label2 = F.interpolate(mov_label, size=img_size, mode='trilinear')
         # print(f"transpose fixed shape: {image1.shape} mov shape: {image2.shape}")
         # print(f"transpose fixed_label shape: {label1.shape} mov_label shape: {label2.shape}")
         # transpose fixed shape: torch.Size([1, 1, 128, 128, 128]) mov shape: torch.Size([1, 1, 128, 128, 128])
@@ -305,13 +305,11 @@ def evaluate(args, Logging, eval_dataset, img_size, model, total_steps):
             jaccs.append(class_jacc)
 
         jacb = jacobian_det(agg_flow.cpu().numpy()[0])
-        # print(f"agg_flow {agg_flow.shape} max: {agg_flow.max()} min: {agg_flow.min()} jacb: {jacb} ")
-        # agg_flow torch.Size([1, 3, 128, 128, 128]) max: 1.8750479221343994 min: -1.7799546718597412 jacb: 0
 
         dice = torch.mean(torch.cuda.FloatTensor(dices)).cpu().numpy()
         jacc = torch.mean(torch.cuda.FloatTensor(jaccs)).cpu().numpy()
         
-        Logging.info('Pair: {:d}   dice: {:10.6f}   jacc: {:10.6f}   jacb: {:10.2f}'.
+        Logging.info('Pair{:6d}   dice:{:10.6f}   jacc:{:10.6f}   jacb:{:10.2f}'.
                     format(i, dice, jacc, jacb))
 
         save_samples(args, total_steps, image2_warped, label2_warped, agg_flow, eval_dataset[i][4])
@@ -346,8 +344,7 @@ def train(args, Logging):
     train_loader = fetch_dataloader(args, Logging)
     # img_size = (232, 256, 10)
     # img_size = (64, 64, 64)
-    # img_size = (128, 128, 128)
-    img_size = (96, 96, 96)
+    img_size = (128, 128, 128)
 
     optimizer, scheduler = fetch_optimizer(args, model)
 
@@ -362,8 +359,8 @@ def train(args, Logging):
             optimizer.zero_grad()
             # print(f"train image1 shape: {image1_data.shape} image2 shape: {image2_data.shape}")
             # train image1 shape: torch.Size([1, 1, 428, 512, 8]) image2 shape: torch.Size([1, 1, 428, 512, 8])
-            image1 = F.interpolate(image1_data, size=img_size, mode='nearest').permute(0, 1, 4, 3, 2) # 'nearest' 'area' 'trilinear' 
-            image2 = F.interpolate(image2_data, size=img_size, mode='nearest').permute(0, 1, 4, 3, 2)
+            image1 = F.interpolate(image1_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
+            image2 = F.interpolate(image2_data, size=img_size, mode='trilinear').permute(0, 1, 4, 3, 2)
             # print(f"transpose image1 shape: {image1.shape} image2 shape: {image2.shape}")
             # transpose image1 shape: torch.Size([1, 1, 8, 512, 428]) image2 shape: torch.Size([1, 1, 8, 512, 428])
             # transpose image1 shape: torch.Size([1, 1, 80, 80, 80]) image2 shape: torch.Size([1, 1, 80, 80, 80])
@@ -387,7 +384,7 @@ def train(args, Logging):
             # if total_steps % args.val_freq == 0:
             if total_steps % args.val_freq == 1:
                 model.eval()
-                eval_dataset = datasets.ACDCTest(args)
+                eval_dataset = datasets.OASISTest(args)
                 evaluate(args, Logging, eval_dataset, img_size, model, total_steps)
 
                 # PATH = args.model_path + '/%s_%d.pth' % (args.name, total_steps + 1)
@@ -409,7 +406,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default='SDHNet', help='name your experiment')
     # parser.add_argument('--dataset', type=str, default='brain', help='which dataset to use for training')
-    parser.add_argument('--dataset', type=str, default='ACDC', help='which dataset to use for training')
+    parser.add_argument('--dataset', type=str, default='OASIS', help='which dataset to use for training')
     parser.add_argument('--epoch', type=int, default=5, help='number of epochs')
     parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
     parser.add_argument('--clip', type=float, default=1.0)
@@ -436,9 +433,10 @@ if __name__ == '__main__':
 
     # dist.init_process_group(backend='nccl')
 
-    os.makedirs(args.base_path, exist_ok=True)
-    os.makedirs(args.model_path, exist_ok=True)
-    os.makedirs(args.eval_path, exist_ok=True)
+    if args.local_rank == 0:
+        os.makedirs(args.base_path, exist_ok=True)
+        os.makedirs(args.model_path, exist_ok=True)
+        os.makedirs(args.eval_path, exist_ok=True)
 
     random.seed(123)
     np.random.seed(123)
