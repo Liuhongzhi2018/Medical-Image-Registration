@@ -308,24 +308,107 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     
     return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
+
+def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
+    
+    # test_txt_path = "/mnt/lhz/Github/Image_registration/RDP/images/LPBA/test_img_seg_list.txt"
+    # pairlist = [f.split(' ') for f in read_files_txt(test_txt_path)]
+    
+    warp_img, warp_flow = output[0], output[1]
+    warp_seg = def_out
+    # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
+    # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
+
+    name = mov_path.split('/')[-1].split('_')[0]
+    # print(f"register mov_path: {mov_path}")
+    data_in = sitk.ReadImage(mov_path)
+    shape_img = data_in.GetSize()
+    ED_origin = data_in.GetOrigin()
+    ED_direction = data_in.GetDirection()
+    ED_spacing = data_in.GetSpacing()
+    
+    # print(f"save_samples shape_img: {shape_img}")
+    # save_samples shape_img: (216, 256, 10)
+    # print(f"save_samples shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
+    # save_samples shape: torch.Size([1, 1, 80, 96, 80]) torch.Size([1, 1, 80, 96, 80]) 
+    # torch.Size([1, 3, 80, 96, 80]) torch.Size([1, 1, 80, 96, 80])    
+    warp_img = F.interpolate(warp_img, size=shape_img, mode='nearest')
+    warp_img_array = warp_img.detach().cpu().numpy().squeeze().transpose(2, 1, 0)
+    
+    warp_seg = F.interpolate(warp_seg.float(), size=shape_img, mode='nearest')
+    warp_seg_array = warp_seg.squeeze().detach().cpu().numpy().transpose(2, 1, 0).astype(np.uint8)
+        
+    warp_flow = F.interpolate(warp_flow, size=shape_img, mode='nearest')
+    deform = warp_flow.detach().cpu().numpy().squeeze().transpose(3, 2, 1, 0)
+    # print(f"save_samples warp_img_array: {warp_img_array.shape} warp_seg_array: {warp_seg_array.shape} deform: {deform.shape}")
+    # save_samples array shape: (10, 216, 256) (10, 216, 256) (10, 216, 256, 3)
+
+    savedSample_warped = sitk.GetImageFromArray(warp_img_array)
+    savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
+    savedSample_defm = sitk.GetImageFromArray(deform)
+    
+    savedSample_warped.SetOrigin(ED_origin)
+    savedSample_seg.SetOrigin(ED_origin)
+    savedSample_defm.SetOrigin(ED_origin)
+    
+    savedSample_warped.SetDirection(ED_direction)
+    savedSample_seg.SetDirection(ED_direction)
+    savedSample_defm.SetDirection(ED_direction)
+    
+    savedSample_warped.SetSpacing(ED_spacing)
+    savedSample_seg.SetSpacing(ED_spacing)
+    savedSample_defm.SetSpacing(ED_spacing)
+    
+    warped_img_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_img.nii.gz')
+    warped_seg_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_seg.nii.gz')
+    warped_flow_path = os.path.join(sample_dir, name + '_ep' + str(epoch) + '_warped_deform.nii.gz')
+    
+    sitk.WriteImage(savedSample_warped, warped_img_path)
+    sitk.WriteImage(savedSample_seg, warped_seg_path)
+    sitk.WriteImage(savedSample_defm, warped_flow_path)
+    
+    # print(f"Saving warped img: {warped_img_path}")
+    # print(f"Saving warped seg: {warped_seg_path}")
+    # print(f"Saving warped imgflow: {warped_flow_path}")
+
+def ACDC_dice_val_VOI(y_pred, y_true):
+    VOI_lbls = [1, 2, 3, 4]
+
+    pred = y_pred.detach().cpu().numpy()[0, 0, ...]
+    true = y_true.detach().cpu().numpy()[0, 0, ...]
+    DSCs = np.zeros((len(VOI_lbls), 1))
+    idx = 0
+    for i in VOI_lbls:
+        pred_i = pred == i
+        true_i = true == i
+        intersection = pred_i * true_i
+        intersection = np.sum(intersection)
+        union = np.sum(pred_i) + np.sum(true_i)
+        dsc = (2.*intersection) / (union + 1e-5)
+        DSCs[idx] =dsc
+        idx += 1
+    return np.mean(DSCs)
+
 def main():
+
     batch_size = 1
-    train_file = '/mnt/lhz/Github/Image_registration/RDP/images/ACDC/train_img_seg_list-99.txt'
+    train_file = '/mnt/lhz/Github/Image_registration/RDP/images/ACDC/train_img_seg_list.txt'
+    # train_file = '/mnt/lhz/Github/Image_registration/RDP/images/ACDC/train_img_seg_list-99.txt'
     val_file = '/mnt/lhz/Github/Image_registration/RDP/images/ACDC/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/RDP_checkpoints/ACDC/'
-    weights = [0.1, 0.1]   #  [0.1, 0.1] [1, 1]  loss weights
-    lr = 1e-5              # 0.0001
+    weights = [1, 1]   #  [0.1, 0.1] [1, 1]  loss weights
+    lr = 0.0001              # 0.0001
+
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    # save_dir = 'RDP_ncc_{}_reg_{}_lr_{}_54r/'.format(*weights, lr)
-    save_dir = curr_time +'_RDP_ncc_{}_reg_{}_lr_{}/'.format(*weights, lr)
-    sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
-    if not os.path.exists(checkpoint_dir + 'experiments/' + save_dir):
-        os.makedirs(checkpoint_dir + 'experiments/' + save_dir)
-    if not os.path.exists(checkpoint_dir + 'logs/' + save_dir):
-        os.makedirs(checkpoint_dir + 'logs/' + save_dir)
+    checkpoint_dir = os.path.join('/mnt/lhz/Github/Image_registration/RDP_checkpoints', 'ACDC_'+curr_time)
+    sample_dir = os.path.join(checkpoint_dir, 'samples')
+    model_dir = os.path.join(checkpoint_dir, 'checkpoints')
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     if not os.path.exists(sample_dir):
         os.makedirs(sample_dir)
-    sys.stdout = Logger(checkpoint_dir + 'logs/' + save_dir)
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    # sys.stdout = Logger(checkpoint_dir + 'logs/' + save_dir)
     # f = open(os.path.join(checkpoint_dir + 'logs/' + save_dir, 'losses and dice' + ".txt"), "a")
     
     # Logger
@@ -333,18 +416,18 @@ def main():
     logger.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(checkpoint_dir + 'logs/' + save_dir, "train.log"))
+    file_handler = logging.FileHandler(os.path.join(checkpoint_dir, "train.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
     # logger.info(f"Config: {args}")
 
     epoch_start = 0
-    max_epoch = 1000
-    # img_size = (216, 256, 10)
-    # similar to FSDiffReg 
-    img_size = (128, 128, 32)
+    max_epoch = 100 # 30 2000
+    img_size = (160, 192, 160) 
+    # img_size = (80, 96, 80) 
     cont_training = False
+    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch}")
 
     '''
     Initialize model
@@ -368,7 +451,6 @@ def main():
     If continue from previous training
     '''
     if cont_training:
-        model_dir = checkpoint_dir + 'experiments/' + save_dir
         updated_lr = round(lr * np.power(1 - (epoch_start) / max_epoch, 0.9), 8)
         best_model = torch.load(model_dir + natsorted(os.listdir(model_dir))[-1])['state_dict']
         model.load_state_dict(best_model)
@@ -380,7 +462,6 @@ def main():
     Initialize training
     '''
     train_composed = transforms.Compose([trans.NumpyType((np.float32, np.float32))])
-
     val_composed = transforms.Compose([trans.NumpyType((np.float32, np.int16))])
     
     # /mnt/lhz/Github/Image_registration/RDP/data/datasets.py
@@ -391,7 +472,6 @@ def main():
     val_set = datasets.ACDCDatasetVal(fn=val_file, transforms=val_composed)
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
 
     # optimizer = optim.Adam(model.parameters(), lr=updated_lr, weight_decay=0, amsgrad=True)
@@ -403,9 +483,9 @@ def main():
     criterions = [criterion]
     criterions += [losses.Grad3d(penalty='l2')]
     best_dsc = 0
-    best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
     # writer = SummaryWriter(log_dir='logs/'+save_dir)
-    for epoch in range(epoch_start, max_epoch):
+    for epoch in range(epoch_start, max_epoch + 1):
         print('Training Starts')
         '''
         Training
@@ -424,14 +504,16 @@ def main():
             x = data_list[0]
             y = data_list[1]
             # print(f"training x shape: {x.shape} y: {y.shape}")
-            # training x shape: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
-            x = F.interpolate(x, size=img_size, mode='trilinear')
-            y = F.interpolate(y, size=img_size, mode='trilinear')
+            # training x shape: torch.Size([1, 1, 216, 256, 10]) y: torch.Size([1, 1, 216, 256, 10])
+            # x, y = x.permute(0, 1, 4, 3, 2), y.permute(0, 1, 4, 3, 2)
+            # print(f"training x shape: {x.shape} y: {y.shape}")
+            # training x shape: torch.Size([1, 1, 10, 256, 216]) y: torch.Size([1, 1, 10, 256, 216])
+            x = F.interpolate(x, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
+            y = F.interpolate(y, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
             # print(f"training resize x shape: {x.shape} y: {y.shape}")
-            # training resize x shape: torch.Size([1, 1, 80, 96, 80]) y: torch.Size([1, 1, 80, 96, 80])
+            # training resize x shape: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
 
             output = model(x,y)
-
             loss = 0
             loss_vals = []
             for n, loss_function in enumerate(criterions):
@@ -445,13 +527,13 @@ def main():
             optimizer.step()
 
             # print('Iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), loss.item(), loss_vals[0].item(), loss_vals[1].item()))
-            logger.info('Iter {} of {} {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
+            logger.info('Epoch {} iter {} of {} {} loss: {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
 
         # print('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         # logger.info('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         
         # print('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg), file=f, end=' ')
-        logger.info('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg))
+        logger.info('Epoch {} avg loss: {:.4f}'.format(epoch, loss_all.avg))
         
         '''
         Validation
@@ -459,8 +541,9 @@ def main():
         # /mnt/lhz/Github/Image_registration/RDP/utils.py
         # class AverageMeter(object)
         eval_dsc = utils.AverageMeter()
-        mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
-        if epoch % 10 == 0:
+        # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
+        # if epoch % 10 == 0:
+        if epoch % 100 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -473,95 +556,54 @@ def main():
                     y = data_list[1]
                     x_seg = data_list[2]
                     y_seg = data_list[3]
-                    x = F.interpolate(x, size=img_size, mode='trilinear')
-                    y = F.interpolate(y, size=img_size, mode='trilinear')
-                    x_seg = F.interpolate(x_seg.float(), size=img_size, mode='trilinear')
-                    y_seg = F.interpolate(y_seg.float(), size=img_size, mode='trilinear')
+                    # print(f"val x shape: {x.shape} y: {y.shape} x_seg shape: {x_seg.shape} y_seg: {y_seg.shape}")
+                    # val x shape: torch.Size([1, 1, 232, 288, 15]) y: torch.Size([1, 1, 232, 288, 15]) 
+                    # x_seg shape: torch.Size([1, 1, 232, 288, 15]) y_seg: torch.Size([1, 1, 232, 288, 15])
+                    # x = x.permute(0, 1, 4, 3, 2)
+                    # y = y.permute(0, 1, 4, 3, 2)
+                    # x_seg = x_seg.permute(0, 1, 4, 3, 2)
+                    # y_seg = y_seg.permute(0, 1, 4, 3, 2)
+                    # print(f"val resize x shape: {x.shape} y: {y.shape} x_seg shape: {x_seg.shape} y_seg: {y_seg.shape}")
+                    # val resize x shape: torch.Size([1, 1, 15, 288, 232]) y: torch.Size([1, 1, 15, 288, 232]) 
+                    # x_seg shape: torch.Size([1, 1, 15, 288, 232]) y_seg: torch.Size([1, 1, 15, 288, 232])               
+                    x = F.interpolate(x, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
+                    y = F.interpolate(y, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
+                    x_seg = F.interpolate(x_seg.float(), size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
+                    y_seg = F.interpolate(y_seg.float(), size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
 
                     output = model(x, y)
                     def_out = reg_model([x_seg.cuda().float(), output[1].cuda()])
 
                     # /mnt/lhz/Github/Image_registration/RDP/utils.py
                     # def dice_val_VOI(y_pred, y_true)
-                    dsc = utils.dice_val_VOI(def_out.long(), y_seg.long())
+                    dsc = ACDC_dice_val_VOI(def_out.long(), y_seg.long())
                     eval_dsc.update(dsc.item(), x.size(0))
                     
                     # print(epoch, ':', eval_dsc.avg)
-                    logger.info(f"epoch {epoch} eval_dsc: {eval_dsc.avg}")
+                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
+
+                    save_samples(epoch, name, output, def_out, y_seg, sample_dir)
                     
-                    tre, jd, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = register(epoch, name, output, def_out, y_seg, sample_dir)
-                    
-                    logger.info(f"Epoch: {epoch} {name} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
-                    logger.info(f"Epoch: {epoch} {name} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
-                    logger.info(f"Epoch: {epoch} {name} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-                    logger.info(f"Epoch: {epoch} {name} jacobian_determinant - {jd}")
-                    
-                    mdice_list.append(mdice)
-                    mhd95_list.append(mhd95)
-                    mIOU_list.append(mIOU)
-                    tre_list.append(tre)
-                    jd_list.append(jd)
-                
             best_dsc = max(eval_dsc.avg, best_dsc)
-            # print(eval_dsc.avg, file=f)
-            logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg}")
-            
-            print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-            # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]
+            logger.info(f"Epoch {epoch} --- eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std} best_dsc: {best_dsc}")
 
-            cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-            cur_meanTre = np.mean(tre_list)
-            cur_meanjd = np.mean(jd_list)
-            
-            logger.info(f"Epoch: {epoch} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre} avgJD: {cur_meanjd}")    
-            # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
-
-            if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
-                best_epoch = epoch
-                best_avg_Dice = cur_avg_dice
-                best_avg_HD95 = cur_avg_hd95
-                best_avg_iou = cur_avg_iou
-                # best_avg_tre = cur_meanTre
-                save_checkpoint({'epoch': epoch + 1,
-                                'state_dict': model.state_dict(),
-                                'best_dsc': best_dsc,
-                                'optimizer': optimizer.state_dict(),}, 
-                                save_dir=checkpoint_dir + 'experiments/' + save_dir, 
-                                filename='best.pth.tar')
-                # print(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
-                logger.info(f"Saving best model to: {os.path.join(checkpoint_dir + 'experiments/' + save_dir, 'best.pth.tar')}")
-                # Saving best model to: /mnt/lhz/Github/Image_registration/RDP_checkpoints/LPBA/experiments/2024-09-03-00-56-43_RDP_ncc_1_reg_1_lr_0.0001_54r/best.pth.tar
-                
-            save_checkpoint({'epoch': epoch + 1,
+            save_checkpoint({'epoch': epoch,
                              'state_dict': model.state_dict(),
                              'best_dsc': best_dsc,
                              'optimizer': optimizer.state_dict(),}, 
-                            save_dir=checkpoint_dir + 'experiments/' + save_dir, 
-                            # filename='ep{}_dsc{:.3f}.pth.tar'.format(epoch, eval_dsc.avg)
-                            filename='ep{}_dsc{:.3f}.pth.tar'.format(epoch, cur_avg_dice))
-        
-        logger.info(f"Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
-        
+                            save_dir = model_dir + '/', 
+                            filename='ep{}_dsc{:.3f}.pth.tar'.format(epoch, eval_dsc.avg)
+                            # filename = 'ep{}_dsc{:.3f}.pth.tar'.format(epoch, best_dsc)
+                            )
+                
         loss_all.reset()
         
-        # for f in os.listdir(sample_dir):
-        #     if "ep" + str(best_epoch) in f: continue
-        #     else:
-        #         os.remove(os.path.join(sample_dir, f))
-        #         print(f"remove samples {os.path.join(sample_dir, f)}")
-                
-        # for f in os.listdir(os.path.join(checkpoint_dir + 'experiments/' + save_dir)):
-        #     if "ep" + str(best_epoch) in f or 'best' in f: continue
-        #     if not os.path.isdir(os.path.join(checkpoint_dir + 'experiments/' + save_dir)):
-        #         os.remove(os.path.join(checkpoint_dir + 'experiments/' + save_dir, f))
-        #     print(f"remove {os.path.join(checkpoint_dir + 'experiments/' + save_dir, f)}")
-            
-    save_checkpoint({'epoch': epoch + 1,
+    save_checkpoint({'epoch': epoch,
                     'state_dict': model.state_dict(),
                     'best_dsc': best_dsc,
                     'optimizer': optimizer.state_dict(),}, 
-                    save_dir=checkpoint_dir + 'experiments/' + save_dir, 
-                    filename='final.pth.tar')
+                    save_dir = model_dir + '/',
+                    filename = 'final.pth.tar')
 
 
 if __name__ == '__main__':

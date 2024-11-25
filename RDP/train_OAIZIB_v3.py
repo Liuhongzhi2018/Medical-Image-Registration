@@ -378,24 +378,6 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     
     # return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def OAIZIB_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [1, 2, 3, 4, 5, 6]
-
-    pred = y_pred.detach().cpu().numpy()[0, 0, ...]
-    true = y_true.detach().cpu().numpy()[0, 0, ...]
-    DSCs = np.zeros((len(VOI_lbls), 1))
-    idx = 0
-    for i in VOI_lbls:
-        pred_i = pred == i
-        true_i = true == i
-        intersection = pred_i * true_i
-        intersection = np.sum(intersection)
-        union = np.sum(pred_i) + np.sum(true_i)
-        dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] =dsc
-        idx += 1
-    return np.mean(DSCs)
-
 
 def main():
     batch_size = 1
@@ -437,7 +419,6 @@ def main():
     # img_size = (160, 384, 384)
     # img_size = (80, 96, 80)
     cont_training = False
-    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch}")
 
     '''
     Initialize model
@@ -473,6 +454,7 @@ def main():
     Initialize training
     '''
     train_composed = transforms.Compose([trans.NumpyType((np.float32, np.float32))])
+
     val_composed = transforms.Compose([trans.NumpyType((np.float32, np.int16))])
     
     # /mnt/lhz/Github/Image_registration/RDP/data/datasets.py
@@ -483,6 +465,7 @@ def main():
     val_set = datasets.OAIZIBDatasetVal(fn=val_file, transforms=val_composed)
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
 
     optimizer = optim.Adam(model.parameters(), lr=updated_lr, weight_decay=0, amsgrad=True)
@@ -521,6 +504,7 @@ def main():
             # training resize x shape: torch.Size([1, 1, 80, 96, 80]) y: torch.Size([1, 1, 80, 96, 80])
 
             output = model(x,y)
+
             loss = 0
             loss_vals = []
             for n, loss_function in enumerate(criterions):
@@ -534,13 +518,13 @@ def main():
             optimizer.step()
 
             # print('Iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), loss.item(), loss_vals[0].item(), loss_vals[1].item()))
-            logger.info('Epoch {} iter {} of {} {} loss: {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
+            logger.info('Epoch {} iter {} of {} {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
 
         # print('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         # logger.info('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         
         # print('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg), file=f, end=' ')
-        logger.info('Epoch {} avg loss: {:.4f}'.format(epoch, loss_all.avg))
+        logger.info('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg))
         
         '''
         Validation
@@ -549,7 +533,7 @@ def main():
         # class AverageMeter(object)
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
-        if epoch % 30 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -572,12 +556,11 @@ def main():
 
                     # /mnt/lhz/Github/Image_registration/RDP/utils.py
                     # def dice_val_VOI(y_pred, y_true)
-                    # dsc = utils.dice_val_VOI(def_out.long(), y_seg.long())
-                    dsc = OAIZIB_dice_val_VOI(def_out.long(), y_seg.long())
+                    dsc = utils.dice_val_VOI(def_out.long(), y_seg.long())
                     eval_dsc.update(dsc.item(), x.size(0))
                     
                     # print(epoch, ':', eval_dsc.avg)
-                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
+                    logger.info(f"epoch {epoch} eval_dsc: {eval_dsc.avg}")
                     
                     # tre, jd, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = register(epoch, name, output, def_out, y_seg, sample_dir)
                     save_samples(epoch, name, output, def_out, y_seg, sample_dir)
@@ -596,7 +579,7 @@ def main():
             best_dsc = max(eval_dsc.avg, best_dsc)
             # print(eval_dsc.avg, file=f)
             # logger.info(eval_dsc.avg)
-            logger.info(f"Epoch {epoch} --- eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std} best_dsc: {best_dsc}")
+            logger.info(f"Epoch {epoch} --- eval_dsc: {eval_dsc.avg} best_dsc: {best_dsc}")
             
             # print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
             # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]

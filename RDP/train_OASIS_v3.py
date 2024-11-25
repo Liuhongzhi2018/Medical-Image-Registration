@@ -245,7 +245,7 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
 
-    name = mov_path.split('/')[-1].split('.')[0]
+    name = mov_path.split('/')[-1][:10]
     # print(f"register mov_path: {mov_path}")
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
@@ -317,7 +317,7 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"compute shape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # compute shape: torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64]) torch.Size([1, 3, 64, 64, 64]) torch.Size([1, 1, 64, 64, 64])
 
-    name = mov_path.split('/')[-1].split('.')[0]
+    name = mov_path.split('/')[-1][:10]
     # print(f"register mov_path: {mov_path}")
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
@@ -327,26 +327,12 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     
     warp_img = F.interpolate(warp_img, size=shape_img, mode='nearest')
     warp_img_array = warp_img.detach().cpu().numpy().squeeze().transpose(2, 1, 0)
-
+    
     warp_seg = F.interpolate(warp_seg.float(), size=shape_img, mode='nearest')
     warp_seg_array = warp_seg.squeeze().detach().cpu().numpy().transpose(2, 1, 0).astype(np.uint8)
-        
+
     warp_flow = F.interpolate(warp_flow, size=shape_img, mode='nearest')
-    deform = warp_flow.detach().cpu().numpy().squeeze().transpose(3, 2, 1, 0)
-    # jd = jacobian_determinant(deform)
-    
-    # seg_gt = F.interpolate(y_seg.float(), size=shape_img, mode='nearest')
-    # gt_seg_array = seg_gt.squeeze().detach().cpu().numpy().transpose(2, 1, 0).astype(np.uint8)
-    
-    # print(f"Transpose {shape_img} to: warp_img {warp_img_array.shape} deform: {deform.shape} warp_seg: {warp_seg_array.shape} gt_seg: {gt_seg_array.shape}")
-    # Transpose (160, 192, 160) to: warp_img (160, 192, 160) deform: (160, 192, 160, 3) warp_seg: (160, 192, 160) gt_seg: (160, 192, 160)
-    
-    # print(f"before translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    # warp_seg_array = translabel(warp_seg_array)
-    # gt_seg_array = translabel(gt_seg_array)
-    # print(f"after translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    
-    # tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+    deform = warp_flow.detach().cpu().numpy().squeeze().transpose(3, 2, 1, 0) 
     
     savedSample_warped = sitk.GetImageFromArray(warp_img_array)
     savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
@@ -378,37 +364,17 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     
     # return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def OAIZIB_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [1, 2, 3, 4, 5, 6]
-
-    pred = y_pred.detach().cpu().numpy()[0, 0, ...]
-    true = y_true.detach().cpu().numpy()[0, 0, ...]
-    DSCs = np.zeros((len(VOI_lbls), 1))
-    idx = 0
-    for i in VOI_lbls:
-        pred_i = pred == i
-        true_i = true == i
-        intersection = pred_i * true_i
-        intersection = np.sum(intersection)
-        union = np.sum(pred_i) + np.sum(true_i)
-        dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] =dsc
-        idx += 1
-    return np.mean(DSCs)
 
 
 def main():
     batch_size = 1
-    train_file = '/mnt/lhz/Github/Image_registration/RDP/images/OAIZIB/train_img_seg_list.txt'
-    val_file = '/mnt/lhz/Github/Image_registration/RDP/images/OAIZIB/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/RDP_checkpoints/OAIZIB/'
+    train_file = '/mnt/lhz/Github/Image_registration/RDP/images/OASIS/train_img_seg_list.txt'
+    val_file = '/mnt/lhz/Github/Image_registration/RDP/images/OASIS/test_img_seg_list.txt'
     weights = [1, 1]  # loss weights
     lr = 0.0001
-
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
     # save_dir = 'RDP_ncc_{}_reg_{}_lr_{}_54r/'.format(*weights, lr)
-    # save_dir = curr_time +'_RDP_ncc_{}_reg_{}_lr_{}_54r/'.format(*weights, lr)
-    checkpoint_dir = os.path.join('/mnt/lhz/Github/Image_registration/RDP_checkpoints', 'OAIZIB_'+curr_time)
+    checkpoint_dir = os.path.join('/mnt/lhz/Github/Image_registration/RDP_checkpoints', 'OASIS_'+curr_time)
     sample_dir = os.path.join(checkpoint_dir, 'samples')
     model_dir = os.path.join(checkpoint_dir, 'checkpoints')
     if not os.path.exists(checkpoint_dir):
@@ -432,12 +398,10 @@ def main():
     # logger.info(f"Config: {args}")
 
     epoch_start = 0
-    max_epoch = 30 # 30 1000
+    max_epoch = 30 # 1500
     img_size = (160, 192, 160)
-    # img_size = (160, 384, 384)
     # img_size = (80, 96, 80)
     cont_training = False
-    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch}")
 
     '''
     Initialize model
@@ -461,7 +425,6 @@ def main():
     If continue from previous training
     '''
     if cont_training:
-        # model_dir = checkpoint_dir + 'experiments/' + save_dir
         updated_lr = round(lr * np.power(1 - (epoch_start) / max_epoch, 0.9), 8)
         best_model = torch.load(model_dir + natsorted(os.listdir(model_dir))[-1])['state_dict']
         model.load_state_dict(best_model)
@@ -473,16 +436,18 @@ def main():
     Initialize training
     '''
     train_composed = transforms.Compose([trans.NumpyType((np.float32, np.float32))])
+
     val_composed = transforms.Compose([trans.NumpyType((np.float32, np.int16))])
     
     # /mnt/lhz/Github/Image_registration/RDP/data/datasets.py
     # class OASISDataset(Dataset)
-    train_set = datasets.OAIZIBDataset(fn=train_file, transforms=train_composed)
+    train_set = datasets.OASISDataset(fn=train_file, transforms=train_composed)
     # /mnt/lhz/Github/Image_registration/RDP/data/datasets.py
     # class OASISDatasetVal(Dataset)
-    val_set = datasets.OAIZIBDatasetVal(fn=val_file, transforms=val_composed)
+    val_set = datasets.OASISDatasetVal(fn=val_file, transforms=val_composed)
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
 
     optimizer = optim.Adam(model.parameters(), lr=updated_lr, weight_decay=0, amsgrad=True)
@@ -516,11 +481,12 @@ def main():
             # print(f"training x shape: {x.shape} y: {y.shape}")
             # training x shape: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
             x = F.interpolate(x, size=img_size, mode='nearest') # 'nearest' 'area' 'trilinear'
-            y = F.interpolate(y, size=img_size, mode='nearest')
+            y = F.interpolate(y, size=img_size, mode='nearest') 
             # print(f"training resize x shape: {x.shape} y: {y.shape}")
             # training resize x shape: torch.Size([1, 1, 80, 96, 80]) y: torch.Size([1, 1, 80, 96, 80])
 
             output = model(x,y)
+
             loss = 0
             loss_vals = []
             for n, loss_function in enumerate(criterions):
@@ -534,13 +500,13 @@ def main():
             optimizer.step()
 
             # print('Iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), loss.item(), loss_vals[0].item(), loss_vals[1].item()))
-            logger.info('Epoch {} iter {} of {} {} loss: {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
+            logger.info('Epoch {} iter {} of {} {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
 
         # print('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         # logger.info('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
         
         # print('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg), file=f, end=' ')
-        logger.info('Epoch {} avg loss: {:.4f}'.format(epoch, loss_all.avg))
+        logger.info('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg))
         
         '''
         Validation
@@ -549,7 +515,7 @@ def main():
         # class AverageMeter(object)
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
-        if epoch % 30 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -572,57 +538,34 @@ def main():
 
                     # /mnt/lhz/Github/Image_registration/RDP/utils.py
                     # def dice_val_VOI(y_pred, y_true)
-                    # dsc = utils.dice_val_VOI(def_out.long(), y_seg.long())
-                    dsc = OAIZIB_dice_val_VOI(def_out.long(), y_seg.long())
+                    dsc = utils.dice_val_VOI(def_out.long(), y_seg.long())
                     eval_dsc.update(dsc.item(), x.size(0))
                     
                     # print(epoch, ':', eval_dsc.avg)
-                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
+                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg}")
                     
-                    # tre, jd, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = register(epoch, name, output, def_out, y_seg, sample_dir)
                     save_samples(epoch, name, output, def_out, y_seg, sample_dir)
-
-                    # logger.info(f"Epoch: {epoch} {name} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
-                    # logger.info(f"Epoch: {epoch} {name} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
-                    # logger.info(f"Epoch: {epoch} {name} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-                    # logger.info(f"Epoch: {epoch} {name} jacobian_determinant - {jd}")
                     
-                    # mdice_list.append(mdice)
-                    # mhd95_list.append(mhd95)
-                    # mIOU_list.append(mIOU)
-                    # tre_list.append(tre)
-                    # jd_list.append(jd)
-                
             best_dsc = max(eval_dsc.avg, best_dsc)
             # print(eval_dsc.avg, file=f)
-            # logger.info(eval_dsc.avg)
-            logger.info(f"Epoch {epoch} --- eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std} best_dsc: {best_dsc}")
+            logger.info(f"Epoch {epoch} --- eval_dsc: {eval_dsc.avg} best_dsc: {best_dsc}")
             
-            # print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-            # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]
-
-            # cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-            # cur_meanTre = np.mean(tre_list)
-            # cur_meanjd = np.mean(jd_list)
-            
-            # logger.info(f"Epoch: {epoch} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre} avgJD: {cur_meanjd}")    
-            # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
-
             save_checkpoint({'epoch': epoch,
                              'state_dict': model.state_dict(),
                              'best_dsc': best_dsc,
                              'optimizer': optimizer.state_dict(),}, 
                             save_dir = model_dir + '/', 
                             filename='ep{}_dsc{:.3f}.pth.tar'.format(epoch, eval_dsc.avg))
+                            # filename='ep{}_dsc{:.3f}.pth.tar'.format(epoch, cur_avg_dice))
                 
         loss_all.reset()
-                    
+        
     save_checkpoint({'epoch': epoch,
                     'state_dict': model.state_dict(),
                     'best_dsc': best_dsc,
                     'optimizer': optimizer.state_dict(),}, 
-                    save_dir = model_dir + '/',
-                    filename = 'final.pth.tar')
+                    save_dir = model_dir + '/', 
+                    filename='final.pth.tar')
 
 
 if __name__ == '__main__':
