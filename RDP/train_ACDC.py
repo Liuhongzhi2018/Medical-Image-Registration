@@ -372,7 +372,7 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"Saving warped imgflow: {warped_flow_path}")
 
 def ACDC_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [1, 2, 3, 4]
+    VOI_lbls = [1, 2, 3]
 
     pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     true = y_true.detach().cpu().numpy()[0, 0, ...]
@@ -385,9 +385,14 @@ def ACDC_dice_val_VOI(y_pred, y_true):
         intersection = np.sum(intersection)
         union = np.sum(pred_i) + np.sum(true_i)
         dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] =dsc
+        DSCs[idx] = dsc
         idx += 1
+    # print(f"DSCs: {DSCs}")
     return np.mean(DSCs)
+# DSCs: [[0.64383865]
+#  [0.7187753 ]
+#  [0.82397162]]
+
 
 def main():
 
@@ -423,11 +428,14 @@ def main():
     # logger.info(f"Config: {args}")
 
     epoch_start = 0
-    max_epoch = 100 # 30 2000
-    img_size = (160, 192, 160) 
-    # img_size = (80, 96, 80) 
+    max_epoch = 50 # 30 50 100 2000
+    # img_size = (160, 192, 160)
+    # img_size = (80, 96, 80)
+    # img_size = (128, 128, 32)     # FSDiffReg
+    img_size = (256, 256, 16)
+
     cont_training = False
-    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch}")
+    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch} img size: {img_size}")
 
     '''
     Initialize model
@@ -527,6 +535,7 @@ def main():
             optimizer.step()
 
             # print('Iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), loss.item(), loss_vals[0].item(), loss_vals[1].item()))
+            # logger.info('Epoch {} iter {} of {} {} loss: {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
             logger.info('Epoch {} iter {} of {} {} loss: {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item(), loss_vals[1].item()))
 
         # print('{} Epoch {} loss {:.4f}'.format(save_dir, epoch, loss_all.avg))
@@ -543,7 +552,7 @@ def main():
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
         # if epoch % 10 == 0:
-        if epoch % 100 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -580,8 +589,8 @@ def main():
                     eval_dsc.update(dsc.item(), x.size(0))
                     
                     # print(epoch, ':', eval_dsc.avg)
-                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
-
+                    # logger.info(f"Epoch {epoch} dsc: {dsc} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
+                    logger.info(f"epoch {epoch} validation dsc: {dsc} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
                     save_samples(epoch, name, output, def_out, y_seg, sample_dir)
                     
             best_dsc = max(eval_dsc.avg, best_dsc)

@@ -382,10 +382,12 @@ def save_samples(epoch, name, output, def_out, y_seg, sample_dir):
 
 
 def LPBA_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
-                41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
-                66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
-                101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
+    # VOI_lbls = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
+    #             41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
+    #             66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
+    #             101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
+
+    VOI_lbls = [i for i in range(1, 56+1)]
 
     pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     true = y_true.detach().cpu().numpy()[0, 0, ...]
@@ -398,8 +400,9 @@ def LPBA_dice_val_VOI(y_pred, y_true):
         intersection = np.sum(intersection)
         union = np.sum(pred_i) + np.sum(true_i)
         dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] =dsc
+        DSCs[idx] = dsc
         idx += 1
+    # print(f"DSCs: {DSCs}")
     return np.mean(DSCs)
 
 
@@ -442,7 +445,7 @@ def main():
     img_size = (160, 192, 160)
     # img_size = (80, 96, 80)
     cont_training = False
-
+    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch} img size: {img_size}")
     '''
     Initialize model
     '''
@@ -520,8 +523,8 @@ def main():
             y = data_list[1]
             # print(f"training x shape: {x.shape} y: {y.shape}")
             # training x shape: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
-            x = F.interpolate(x, size=img_size, mode='nearest')   # 'nearest' 'area' 'trilinear'
-            y = F.interpolate(y, size=img_size, mode='nearest')
+            # x = F.interpolate(x, size=img_size, mode='nearest')   # 'nearest' 'area' 'trilinear'
+            # y = F.interpolate(y, size=img_size, mode='nearest')
             # print(f"training resize x shape: {x.shape} y: {y.shape}")
             # training resize x shape: torch.Size([1, 1, 80, 96, 80]) y: torch.Size([1, 1, 80, 96, 80])
 
@@ -554,7 +557,7 @@ def main():
         # class AverageMeter(object)
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
-        if epoch % 30 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -567,10 +570,10 @@ def main():
                     y = data_list[1]
                     x_seg = data_list[2]
                     y_seg = data_list[3]
-                    x = F.interpolate(x, size=img_size, mode='nearest')  # 'nearest' 'area' 'trilinear'
-                    y = F.interpolate(y, size=img_size, mode='nearest')
-                    x_seg = F.interpolate(x_seg.float(), size=img_size, mode='nearest')
-                    y_seg = F.interpolate(y_seg.float(), size=img_size, mode='nearest')
+                    # x = F.interpolate(x, size=img_size, mode='nearest')  # 'nearest' 'area' 'trilinear'
+                    # y = F.interpolate(y, size=img_size, mode='nearest')
+                    # x_seg = F.interpolate(x_seg.float(), size=img_size, mode='nearest')
+                    # y_seg = F.interpolate(y_seg.float(), size=img_size, mode='nearest')
                     # print(f"Val {name} resize  x shape: {x.shape} y shape: {y.shape} x_seg shape: {x_seg.shape} y_seg shape: {y_seg.shape}")
                     # Val S09.delineation.skullstripped.nii.gz resize  
                     # x shape: torch.Size([1, 1, 64, 64, 64]) y shape: torch.Size([1, 1, 64, 64, 64]) 
