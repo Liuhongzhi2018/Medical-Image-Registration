@@ -379,7 +379,7 @@ def save_samples(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 def OAIZIB_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [1, 2, 3, 4, 5, 6]
+    VOI_lbls = [1, 2, 3, 4, 5]
 
     pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     true = y_true.detach().cpu().numpy()[0, 0, ...]
@@ -437,7 +437,7 @@ def main():
     # img_size = (160, 384, 384)
     # img_size = (80, 96, 80)
     cont_training = False
-    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch}")
+    logger.info(f"epoch_start: {epoch_start} max_epoch: {max_epoch} img size: {img_size}")
 
     '''
     Initialize model
@@ -549,7 +549,7 @@ def main():
         # class AverageMeter(object)
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
-        if epoch % 30 == 0:
+        if epoch % 10 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -577,7 +577,7 @@ def main():
                     eval_dsc.update(dsc.item(), x.size(0))
                     
                     # print(epoch, ':', eval_dsc.avg)
-                    logger.info(f"Epoch {epoch} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
+                    logger.info(f"epoch {epoch} validation dsc: {dsc} eval_dsc: {eval_dsc.avg} eval_dsc_std: {eval_dsc.std}")
                     
                     # tre, jd, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = register(epoch, name, output, def_out, y_seg, sample_dir)
                     save_samples(epoch, name, output, def_out, y_seg, sample_dir)
