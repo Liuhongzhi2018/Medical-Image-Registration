@@ -675,8 +675,8 @@ def compute_metrics_ACDC(pred_path, pred_gt_files, save_dir, logger):
     for i, pairs in enumerate(pred_gt_files):
         pair1, pair2 = pairs[0], pairs[1]
         # change name of pred_file to the output results
-        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('_')[0] + '_ep990_warped_seg.nii.gz')
-        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('_')[0] + '_ep990_warped_deformflow.nii.gz')
+        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('_')[0] + '_ep20_warped_seg.nii.gz')
+        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('_')[0] + '_ep20_warped_deform.nii.gz')
         gt_file = pair2
         print(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
         logger.info(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
@@ -808,8 +808,8 @@ def compute_metrics_LPBA(pred_path, pred_gt_files, save_dir, logger):
     for i, pairs in enumerate(pred_gt_files):
         pair1, pair2 = pairs[0], pairs[1]
         # change name of pred_file to the output results
-        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep25001_warped_seg.nii.gz')
-        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep25001_warped_deform.nii.gz')
+        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep50_warped_seg.nii.gz')
+        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep50_warped_deformflow.nii.gz')
         gt_file = pair2
         print(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
         logger.info(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
@@ -941,8 +941,8 @@ def compute_metrics_OASIS(pred_path, pred_gt_files, save_dir, logger):
     for i, pairs in enumerate(pred_gt_files):
         pair1, pair2 = pairs[0], pairs[1]
         # change name of pred_file to the output results
-        pred_file = os.path.join(pred_path, pair1.split('/')[-1][:10] + '_ep25001_warped_seg.nii.gz')
-        deform_file = os.path.join(pred_path, pair1.split('/')[-1][:10] + '_ep25001_warped_deform.nii.gz')
+        pred_file = os.path.join(pred_path, pair1.split('/')[-1][:10] + '_ep30_warped_seg.nii.gz')
+        deform_file = os.path.join(pred_path, pair1.split('/')[-1][:10] + '_ep30_warped_deformflow.nii.gz')
         gt_file = pair2
         print(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
         logger.info(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
@@ -1074,8 +1074,8 @@ def compute_metrics_OAIZIB(pred_path, pred_gt_files, save_dir, logger):
     for i, pairs in enumerate(pred_gt_files):
         pair1, pair2 = pairs[0], pairs[1]
         # change name of pred_file to the output results
-        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep20001_warped_seg.nii.gz')
-        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep20001_warped_deform.nii.gz')
+        pred_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep30_warped_seg.nii.gz')
+        deform_file = os.path.join(pred_path, pair1.split('/')[-1].split('.')[0] + '_ep30_warped_deformflow.nii.gz')
         gt_file = pair2
         print(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
         logger.info(f"{i + 1} pred: {pred_file} gt: {gt_file} deform: {deform_file}")
@@ -1207,24 +1207,24 @@ if __name__ == '__main__':
     # seg_txt = r'/mnt/lhz/Github/Image_registration/RDN/images/ACDC/test_img_seg_list.txt'
     # pred_path = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/ACDC_2024-11-04-23-31-32/eval'
     # save_dir = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/ACDC_2024-11-04-23-31-32'
-    seg_txt = r'/mnt/lhz/Github/Image_registration/RDP/images/ACDC/test_img_seg_list.txt'
-    pred_path = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/ACDC/experiments/2024-09-06-15-15-37_RDP_ncc_0.1_reg_0.1_lr_1e-05/samples'
-    save_dir = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/ACDC/experiments/2024-09-06-15-15-37_RDP_ncc_0.1_reg_0.1_lr_1e-05'
+    # seg_txt = r'/mnt/lhz/Github/Image_registration/RDP/images/ACDC/test_img_seg_list.txt'
+    # pred_path = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/ACDC_2024-12-02-11-36-57/samples'
+    # save_dir = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/ACDC_2024-12-02-11-36-57'
 
     # # LPBA
-    # seg_txt = r'/mnt/lhz/Github/Image_registration/RDN/images/LPBA/test_img_seg_list.txt'
-    # pred_path = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/LPBA_2024-11-04-19-53-53/eval'
-    # save_dir = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/LPBA_2024-11-04-19-53-53/'
+    # seg_txt = r'/mnt/lhz/Github/Image_registration/RDP/images/LPBA/test_img_seg_list.txt'
+    # pred_path = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/LPBA_2024-12-02-23-12-18/samples'
+    # save_dir = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/LPBA_2024-12-02-23-12-18/'
 
     # OASIS
-    # seg_txt = r'/mnt/lhz/Github/Image_registration/RDN/images/OASIS/test_img_seg_list.txt'
-    # pred_path = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/OASIS_2024-11-04-19-53-54/eval'
-    # save_dir = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/OASIS_2024-11-04-19-53-54'
+    seg_txt = r'/mnt/lhz/Github/Image_registration/RDP/images/OASIS/test_img_seg_list.txt'
+    pred_path = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/OASIS_2024-12-02-20-45-05/samples'
+    save_dir = r'//mnt/lhz/Github/Image_registration/RDP_checkpoints/OASIS_2024-12-02-20-45-05'
 
     ## OAIZIB
     # seg_txt = r'/mnt/lhz/Github/Image_registration/RDN/images/OAIZIB/test_img_seg_list.txt'
-    # pred_path = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/OAIZIB_2024-11-04-19-53-57/eval'
-    # save_dir = r'/mnt/lhz/Github/Image_registration/RDN_checkpoints/OAIZIB_2024-11-04-19-53-57'
+    # pred_path = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/OAIZIB_2024-12-03-00-55-12/samples'
+    # save_dir = r'/mnt/lhz/Github/Image_registration/RDP_checkpoints/OAIZIB_2024-12-03-00-55-12'
 
     logger = logging.getLogger('my_logger')
     logger.setLevel(logging.INFO)
@@ -1239,11 +1239,10 @@ if __name__ == '__main__':
     # print(f"segment pairs: {pred_gt_files}")
 
     # compute_metrics(pred_path, pred_gt_files, save_dir, logger)
-    compute_metrics_ACDC(pred_path, pred_gt_files, save_dir, logger)
+    # compute_metrics_ACDC(pred_path, pred_gt_files, save_dir, logger)
     # compute_metrics_LPBA(pred_path, pred_gt_files, save_dir, logger)
-    # compute_metrics_OASIS(pred_path, pred_gt_files, save_dir, logger)
+    compute_metrics_OASIS(pred_path, pred_gt_files, save_dir, logger)
     # compute_metrics_OAIZIB(pred_path, pred_gt_files, save_dir, logger)
-
 
     logger.removeHandler(file_handler)
     file_handler.close()
