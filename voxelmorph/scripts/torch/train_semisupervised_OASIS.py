@@ -237,13 +237,39 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     tre = calc_TRE(gt, pre)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-def register(model, epoch, logger, args):
+
+def OASIS_dice_val_VOI(y_pred, y_true):
+    VOI_lbls = [i for i in range(1, 36)]
+
+    # pred = y_pred.detach().cpu().numpy()[0, 0, ...]
+    # true = y_true.detach().cpu().numpy()[0, 0, ...]
+    pred = y_pred
+    true = y_true
+    DSCs = np.zeros((len(VOI_lbls), 1))
+    idx = 0
+    for i in VOI_lbls:
+        pred_i = pred == i
+        true_i = true == i
+        intersection = pred_i * true_i
+        intersection = np.sum(intersection)
+        union = np.sum(pred_i) + np.sum(true_i)
+        dsc = (2.*intersection) / (union + 1e-5)
+        DSCs[idx] =dsc
+        idx += 1
+    return np.mean(DSCs)
+
+
+def register(model, epoch, inshape, logger, args):
     # load moving and fixed images
     add_feat_axis = not args.multichannel
     
-    inshape = (160, 224, 192)
+    # inshape = (160, 224, 192)
+    inshape = inshape
+
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
     mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
+    dsc_list = []
+
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
@@ -359,30 +385,16 @@ def register(model, epoch, logger, args):
         sitk.WriteImage(savedSample_warped, img_path)
         sitk.WriteImage(savedSample_seg, seg_path)
         sitk.WriteImage(savedSample_defm, warp_path)
-        
-        # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
-        tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
-        jd = jacobian_determinant(deform)
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {', '.join(['%.4e' % f for f in IOU_list])}")
-        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} jacobian_determinant - {jd}")
-        
-        mdice_list.append(mdice)
-        mhd95_list.append(mhd95)
-        mIOU_list.append(mIOU)
-        tre_list.append(tre)
-        jd_list.append(jd)
-        
-    print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-    cur_avgdice, cur_avghd95, cur_avgiou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-    cur_meanTre = np.mean(tre_list)
-    cur_meanjd = np.mean(jd_list)
-    
-    logger.info(f"Epoch: {epoch} - avgDice: {cur_avgdice} avgHD95: {cur_avghd95} avgIOU: {cur_avgiou} avgTRE: {cur_meanTre} avgJD: {cur_meanjd}")
-    
-    return cur_avgdice, cur_avghd95, cur_avgiou, cur_meanTre, cur_meanjd
 
+        dsc = OASIS_dice_val_VOI(moved_seg, fixed_seg_array)
+        dsc_list.append(dsc)
+        logger.info(f"Evaluation {p[2]} Dice: {dsc}")
+    
+    dsc_mean, dsc_std = np.mean(dsc_list), np.std(dsc_list)
+    
+    return dsc_mean, dsc_std
+        
+        
 def train(args, logger, device):
     bidir = args.bidir
 
@@ -432,7 +444,7 @@ def train(args, logger, device):
     # inshape = (160, 224, 192)  # (x:160, y:224, z:192)
     # print(f"inshape: {inshape}")
     # inshape: (160, 224, 192)
-
+    inshape = gen_shape
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -461,7 +473,7 @@ def train(args, logger, device):
     # prepare the model for training and send to device
     model.to(device)
     # model.train()
-    logger.info(f"Model: {model}")
+    logger.info(f"VoxelMorph image shape: {inshape} \nModel: {model}")
 
     # set optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -490,7 +502,9 @@ def train(args, logger, device):
     # losses += [vxm.losses.Dice().loss]
     # weights += [args.weight]
     
-    best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    best_dsc = 0
+    
     # training loops
     for epoch in range(args.initial_epoch, args.epochs):
         epoch_loss = []
@@ -521,7 +535,7 @@ def train(args, logger, device):
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
             # print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-            logger.info(f"Training epoch: {epoch} -- step: {step}/{args.steps_per_epoch} loss: {', '.join(['%.4e' % f for f in loss_list])}")
+            # logger.info(f"Training epoch: {epoch} -- step: {step}/{args.steps_per_epoch} loss: {', '.join(['%.4e' % f for f in loss_list])}")
             
             epoch_loss.append(loss_list)
             epoch_total_loss.append(loss.item())
@@ -544,39 +558,15 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % 10 == 0:
+        if epoch % args.epochs == 0:
+        # if epoch % 10 == 0:
             with torch.no_grad():
-                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_meanjd = register(model, epoch, logger, args)
+                dsc_mean, dsc_std = register(model, epoch, inshape, logger, args)
+    
+            best_dsc = max(dsc_mean, best_dsc)
+            logger.info(f"Epoch {epoch} --- Dice mean: {dsc_mean} std: {dsc_std} best_dsc: {best_dsc}")
                     
-            # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
-            if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
-                best_epoch = epoch
-                best_avg_Dice = cur_avg_dice
-                best_avg_HD95 = cur_avg_hd95
-                best_avg_iou = cur_avg_iou
-                # best_avg_tre = cur_meanTre
-                model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
-                # print(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
-                logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
-                
-        for f in os.listdir(args.sample_dir):
-            if "ep" + str(best_epoch) in f: continue
-            else:
-                os.remove(os.path.join(args.sample_dir, f))
-                # print(f"remove samples without < epoch {best_epoch} >")
-                
-        for f in os.listdir(args.checkpoint_dir):
-            if '%04d.pth' % best_epoch in f or 'log' in f or 'best' in f: continue
-            if not os.path.isdir(os.path.join(args.checkpoint_dir, f)):
-                os.remove(os.path.join(args.checkpoint_dir, f))
-            # print(f"remove pth without < epoch {best_epoch} >")
-            
-        model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
-        logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
 
-        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} nonpJD {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
-        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} nonpJD {cur_meanjd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
-  
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
     model.save(os.path.join(args.checkpoint_dir, 'final.pth'))

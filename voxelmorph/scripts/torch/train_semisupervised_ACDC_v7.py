@@ -46,6 +46,7 @@ import time
 import logging
 import SimpleITK as sitk
 import statistics
+# import pystrum.pynd.ndutils as nd
 import scipy
 from scipy.ndimage import _ni_support
 from scipy.ndimage.morphology import distance_transform_edt, \
@@ -65,16 +66,61 @@ def read_files_txt(txt_path):
 
 # internal utility to generate downsampled prob seg from discrete seg
 def split_seg(seg, labels):
-    # prob_seg = np.zeros((*seg.shape[:4], len(labels)))
-    prob_seg = np.zeros((*seg.shape[:4], labels.max()+1))
-    # print(f"split_seg prob_seg {prob_seg.shape}")
-    # split_seg prob_seg (1, 160, 192, 160, 183)
+    prob_seg = np.zeros((*seg.shape[:4], len(labels)))
     for i, label in enumerate(labels):
-        # prob_seg[0, ..., i] = seg[0, ..., 0] == label
-        prob_seg[0, ..., label] = seg[0, ..., 0] == label
+        prob_seg[0, ..., i] = seg[0, ..., 0] == label
     # return prob_seg[:, ::downsize, ::downsize, ::downsize, :]
     return prob_seg
 
+# https://github.com/JHU-MedImage-Reg/LUMIR_L2R//L2R_LUMIR_Eval/utils.py
+# https://github.com/junyuchen245/TransMorph_Transformer_for_Medical_Image_Registration/OASIS/evaluation.py
+# non-positive Jacobian determinant (%|J| ≤ 0) and the non-diffeomorphic volume (%NDV)
+# non-positive Jacobian determinant (\(|J_{\phi }| \le 0\))
+# def jacobian_determinant_vxm(disp):
+#     """
+#     jacobian determinant of a displacement field.
+#     NB: to compute the spatial gradients, we use np.gradient.
+#     Parameters:
+#         disp: 2D or 3D displacement field of size [*vol_shape, nb_dims],
+#               where vol_shape is of len nb_dims
+#     Returns:
+#         jacobian determinant (scalar)
+#     """
+
+#     # check inputs
+#     disp = disp.transpose(1, 2, 3, 0)
+#     volshape = disp.shape[:-1]
+#     nb_dims = len(volshape)
+#     assert len(volshape) in (2, 3), 'flow has to be 2D or 3D'
+
+#     # compute grid
+#     grid_lst = nd.volsize2ndgrid(volshape)
+#     grid = np.stack(grid_lst, len(volshape))
+
+#     # compute gradients
+#     J = np.gradient(disp + grid)
+
+#     # 3D glow
+#     if nb_dims == 3:
+#         dx = J[0]
+#         dy = J[1]
+#         dz = J[2]
+
+#         # compute jacobian components
+#         Jdet0 = dx[..., 0] * (dy[..., 1] * dz[..., 2] - dy[..., 2] * dz[..., 1])
+#         Jdet1 = dx[..., 1] * (dy[..., 0] * dz[..., 2] - dy[..., 2] * dz[..., 0])
+#         Jdet2 = dx[..., 2] * (dy[..., 0] * dz[..., 1] - dy[..., 1] * dz[..., 0])
+
+#         return Jdet0 - Jdet1 + Jdet2
+
+#     else:  # must be 2
+
+#         dfdx = J[0]
+#         dfdy = J[1]
+
+#         return dfdx[..., 0] * dfdy[..., 1] - dfdy[..., 0] * dfdx[..., 1]
+
+# https://github.com/junyuchen245/TransMorph_Transformer_for_Medical_Image_Registration/Baseline_registration_models/VoxelMorph/infer.py
 def jacobian_determinant(disp):
     disp = np.expand_dims(disp.transpose(3, 2, 1, 0), 0)
     # print(f"jacobian_determinant disp: {disp.shape}")
@@ -109,6 +155,8 @@ def jacobian_determinant(disp):
     nonpjacdet = np.sum(jacdet <= 0)/np.prod(disp_one.shape)
     return nonpjacdet
 
+# https://docs.monai.io/en/stable/metrics.html
+# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
 def Dice(pred, gt):
     # intersection = np.logical_and(gt, pred)
     # union = np.logical_or(gt, pred)
@@ -120,6 +168,7 @@ def Dice(pred, gt):
     dice = 2.0 * (np.sum(intersection) + smooth) / (mask_sum + smooth)
     return dice
 
+# https://github.com/OldaKodym/evaluation_metrics/blob/master/metrics.py
 def __surface_distances(result, reference, voxelspacing=None, connectivity=1):
     """
     The distances between the surface voxel of binary objects in result and their
@@ -164,6 +213,7 @@ def iou(pred, gt, classes=1):
     iou = np.sum(intersection) / np.sum(union)
     return iou
 
+# https://ilmonteux.github.io/2019/05/10/segmentation-metrics.html
 def IOU(pred, gt, classes=1):
     '''
     Intersection over Union (IoU) and Jaccard coefficients (or indices)
@@ -175,19 +225,23 @@ def IOU(pred, gt, classes=1):
     iou = (np.sum(intersection) + smooth) / (np.sum(union) + smooth)
     return iou
 
+# https://github.com/JHU-MedImage-Reg/LUMIR_L2R/blob/ecfd6f368e9c8e64417120ddbe06562054757a89/L2R_LUMIR_Eval/utils.py
 def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
+    '''
+    Target Registration Error (TRE)
+    '''
     x = np.linspace(0, fx_lms.shape[0] - 1, fx_lms.shape[0])
     y = np.linspace(0, fx_lms.shape[1] - 1, fx_lms.shape[1])
     z = np.linspace(0, fx_lms.shape[2] - 1, fx_lms.shape[2])
     yv, xv, zv = np.meshgrid(y, x, z)
     unique = np.unique(fx_lms)
-
+    smooth = 0.001
     dfm_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (dfm_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
-        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
-        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
+        xc = np.sum(label * xv) / (np.sum(label) + smooth)
+        yc = np.sum(label * yv) / (np.sum(label) + smooth)
+        zc = np.sum(label * zv) / (np.sum(label) + smooth)
         dfm_pos[i - 1, 0] = xc
         dfm_pos[i - 1, 1] = yc
         dfm_pos[i - 1, 2] = zc
@@ -195,23 +249,16 @@ def calc_TRE(dfm_lms, fx_lms, spacing_mov=1):
     fx_pos = np.zeros((len(unique) - 1, 3))
     for i in range(1, len(unique)):
         label = (fx_lms == unique[i]).astype('float32')
-        xc = np.sum(label * xv) / (np.sum(label) + 1e-3)
-        yc = np.sum(label * yv) / (np.sum(label) + 1e-3)
-        zc = np.sum(label * zv) / (np.sum(label) + 1e-3)
+        xc = np.sum(label * xv) / (np.sum(label) + smooth)
+        yc = np.sum(label * yv) / (np.sum(label) + smooth)
+        zc = np.sum(label * zv) / (np.sum(label) + smooth)
         fx_pos[i - 1, 0] = xc
         fx_pos[i - 1, 1] = yc
         fx_pos[i - 1, 2] = zc
 
     dfm_fx_error = np.mean(np.sqrt(np.sum(np.power((dfm_pos - fx_pos)*spacing_mov, 2), 1)))
+    # print(('landmark error (vox): after {}'.format(dfm_fx_error)))
     return dfm_fx_error
-
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:127: RuntimeWarning: invalid value encountered in scalar divide
-#   xc = np.sum(label * xv) / np.sum(label)
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:128: RuntimeWarning: invalid value encountered in scalar divide
-#   yc = np.sum(label * yv) / np.sum(label)
-# /mnt/lhz/Github/Image_registration/voxelmorph/./scripts/torch/train_semisupervised_LPBA.py:129: RuntimeWarning: invalid value encountered in scalar divide
-#   zc = np.sum(label * zv) / np.sum(label)
-
 
 def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     n_dice_list = []
@@ -224,11 +271,9 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
         ngt_data[gt == c] = 1
         npred_data = np.zeros_like(pre)
         npred_data[pre == c] = 1
-        if np.count_nonzero(npred_data) == 0: npred_data = np.ones_like(pre)
         # n_dice = 2*np.sum(ngt_data*npred_data)/(np.sum(1*ngt_data+npred_data) + 0.0001)
         n_dice = Dice(npred_data, ngt_data)
-        n_hd95 = hd95(npred_data, ngt_data, voxelspacing = gtspacing[::-1])
-        # n_iou = iou(npred_data, ngt_data)
+        n_hd95 = hd95(ngt_data, npred_data, voxelspacing = gtspacing[::-1])
         n_iou = IOU(npred_data, ngt_data)
         n_dice_list.append(n_dice)
         n_hd95_list.append(n_hd95)
@@ -237,59 +282,32 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
     mean_HD95 = statistics.mean(n_hd95_list)
     mean_iou = statistics.mean(n_iou_list)
     
-    # tre = calc_TRE(ngt_data, npred_data)
-    tre = calc_TRE(gt, pre)
+    tre = calc_TRE(ngt_data, npred_data)
     return tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
-
-def LPBA_dice_val_VOI(y_pred, y_true):
-    # VOI_lbls = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
-    #             41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
-    #             66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
-    #             101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
-
-    # VOI_lbls = [i for i in range(1, 56+1)]
-
-    VOI_lbls = np.unique(y_true)
-
-    pred = y_pred
-    true = y_true
-    DSCs = np.zeros((len(VOI_lbls), 1))
-    idx = 0
-    for i in VOI_lbls:
-        pred_i = pred == i
-        true_i = true == i
-        intersection = pred_i * true_i
-        intersection = np.sum(intersection)
-        union = np.sum(pred_i) + np.sum(true_i)
-        dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] = dsc
-        idx += 1
-    # print(f"DSCs: {DSCs}")
-    return np.mean(DSCs)
-
-
-def register(model, epoch, inshape, logger, args):
+def register(model, epoch, logger, args):
     # load moving and fixed images
     add_feat_axis = not args.multichannel
     
-    # inshape = (192, 192, 192)
-    # inshape = (160, 160, 160)
-    # inshape = (128, 128, 128)
-    inshape = inshape
-
+    inshape = (192, 192, 192)
     pairlist = [f.split(' ') for f in read_files_txt(args.test_txt_path)]
-    dsc_list = []
-
-    # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
+    
+    dice_RV_list, dice_Myo_list, dice_LV_list = [], [], []
+    hd95_RV_list, hd95_Myo_list, hd95_LV_list = [], [], []
+    iou_RV_list, iou_Myo_list, iou_LV_list = [], [], []
+    tre_list, jd_list = [], []
     # model.eval()
     # with torch.no_grad():
     for p in pairlist:
         moving_img, moving_seg, fixed_img, fixed_seg = p[0], p[1], p[2], p[3]
-        warped_img = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
-        warped_seg = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
-        warped_flow = moving_img.split('/')[-1].split('.')[0] + '_ep' + str(epoch) + '_warped_deformflow' +'.nii.gz'
-      
+        warped_img = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_img' +'.nii.gz'
+        warped_seg = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_seg' +'.nii.gz'
+        warped_flow = moving_img.split('/')[-1].split('_')[0] + '_ep' + str(epoch) + '_warped_flow' +'.nii.gz'
+        # print(f"moving_img: {moving_img} moving_seg: {moving_seg} fixed_img: {fixed_img} fixed_seg: {fixed_seg}")
+        # print(f"warped_img: {warped_img} warped_seg: {warped_seg}")
+        # moving_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10.nii.gz moving_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame10_gt.nii.gz fixed_img: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01.nii.gz fixed_seg: /mnt/lhz/Datasets/Learn2reg/ACDC/testing/patient107/patient107_frame01_gt.nii.gz
+        # warped_img: patient107_img_warped_ep0_.nii.gz warped_seg: patient107_seg_warped_ep0_.nii.gz
+        
         moving = vxm.py.utils.load_volfile(moving_img,
                                             np_var='vol',
                                             add_batch_axis=True, 
@@ -310,18 +328,13 @@ def register(model, epoch, inshape, logger, args):
                                                 np_var='seg',
                                                 add_batch_axis=True, 
                                                 add_feat_axis=add_feat_axis)
-
+        
         labels = np.unique(fixed_seg)
         # print(f"semisupervised_pairs labels: {labels}")
-        # semisupervised_pairs labels: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
-        # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
-        # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
-        # 166 181 182]
+        # semisupervised_pairs labels: [0 1 2 3]
         src_seg = split_seg(moving_seg, labels)
         trg_seg = split_seg(fixed_seg, labels)
         # print(f"semisupervised_pairs src_seg: {src_seg.shape} trg_seg: {trg_seg.shape}")
-        # split_seg prob_seg (1, 160, 192, 160, 183)
-        # split_seg prob_seg (1, 160, 192, 160, 183)
         
         # print(f"register moving: {moving.shape} moving_seg: {moving_seg.shape}")
         # print(f"register fixed: {fixed.shape} fixed_seg: {fixed_seg.shape}")
@@ -333,17 +346,12 @@ def register(model, epoch, inshape, logger, args):
         input_moving = torch.from_numpy(moving).to(device).float().permute(0, 4, 1, 2, 3)
         input_fixed = torch.from_numpy(fixed).to(device).float().permute(0, 4, 1, 2, 3)
         input_moving_seg = torch.from_numpy(src_seg).to(device).float().permute(0, 4, 1, 2, 3)
-        # input_fixed_seg = torch.from_numpy(trg_seg).to(device).float().permute(0, 4, 1, 2, 3)
-        input_fixed_seg = torch.from_numpy(trg_seg).float().permute(0, 4, 1, 2, 3)
-
+        input_fixed_seg = torch.from_numpy(trg_seg).to(device).float().permute(0, 4, 1, 2, 3)
         input_moving = F.interpolate(input_moving, size=inshape)
         input_fixed = F.interpolate(input_fixed, size=inshape)
         input_moving_seg = F.interpolate(input_moving_seg, size=inshape)
         input_fixed_seg = F.interpolate(input_fixed_seg, size=inshape)
-        
-        # print(f"register input_moving: {input_moving.shape} ")
-        # print(f"input_fixed: {input_fixed.shape}")
-        # print(f"input_moving_seg: {input_moving_seg.shape}")
+        # print(f"register input_moving: {input_moving.shape} input_fixed: {input_fixed.shape} input_moving_seg: {input_moving_seg.shape}")
         
         # moved_img, warp, moved_seg = model(input_moving, input_fixed, input_moving_seg, registration=True)
         moved_img, warp, moved_seg = model(input_moving, input_fixed, input_moving_seg)
@@ -404,13 +412,44 @@ def register(model, epoch, inshape, logger, args):
         sitk.WriteImage(savedSample_seg, seg_path)
         sitk.WriteImage(savedSample_defm, warp_path)
         
-        dsc = LPBA_dice_val_VOI(moved_seg, fixed_seg_array)
-        dsc_list.append(dsc)
-        logger.info(f"Evaluation {p[0]} Dice: {dsc}")
-    
-    dsc_mean, dsc_std = np.mean(dsc_list), np.std(dsc_list)
+        # print(f"moved_seg: {moved_seg.shape} fixed_seg_array: {fixed_seg_array.shape}")
+        tre, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(moved_seg, fixed_seg_array, ED_spacing)
+        jd = jacobian_determinant(deform)
+        dice_RV_list.append(dice_list[0])
+        dice_Myo_list.append(dice_list[1])
+        dice_LV_list.append(dice_list[2])
+        hd95_RV_list.append(hd95_list[0])
+        hd95_Myo_list.append(hd95_list[1])
+        hd95_LV_list.append(hd95_list[2])
+        iou_RV_list.append(IOU_list[0])
+        iou_Myo_list.append(IOU_list[1])
+        iou_LV_list.append(IOU_list[2])
+        tre_list.append(tre)
+        jd_list.append(jd)
+        
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean Dice {mdice} - {dice_list}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean HD95 {mhd95} - {hd95_list}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} mean IOU {mIOU} - {IOU_list}")
+        logger.info(f"Epoch: {epoch} {moving_img.split('/')[-1]} jacobian_determinant - {jd}")
 
-    return dsc_mean, dsc_std
+    cur_RV_avgdice, cur_Myo_avgdice, cur_LV_avgdice = statistics.mean(dice_RV_list), statistics.mean(dice_Myo_list), statistics.mean(dice_LV_list)
+    cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95 = statistics.mean(hd95_RV_list), statistics.mean(hd95_Myo_list), statistics.mean(hd95_LV_list)
+    cur_RV_iou, cur_Myo_iou, cur_LV_iou = statistics.mean(iou_RV_list), statistics.mean(iou_Myo_list), statistics.mean(iou_LV_list)
+    cur_avg_dice = np.average([cur_RV_avgdice, cur_Myo_avgdice, cur_LV_avgdice])
+    cur_avg_hd95 = np.average([cur_RV_avghd95, cur_Myo_avghd95, cur_LV_avghd95])
+    cur_avg_iou = np.average([cur_RV_iou, cur_Myo_iou, cur_LV_iou])
+    cur_meanTre = statistics.mean(tre_list)
+    cur_jd = statistics.mean(jd_list)
+    
+    # print(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
+    logger.info(f"Epoch: {epoch} Dice - RV: {cur_RV_avgdice} Myo: {cur_Myo_avgdice} LV: {cur_LV_avgdice} ")
+    # print(f"Epoch: {epoch} HD95 - RV: {cur_RV_avghd95} Myo: {cur_Myo_avghd95} LV: {cur_LV_avghd95} ")
+    logger.info(f"Epoch: {epoch} HD95 - RV: {cur_RV_avghd95} Myo: {cur_Myo_avghd95} LV: {cur_LV_avghd95} ")
+    # print(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
+    logger.info(f"Epoch: {epoch} IOU - RV: {cur_RV_iou} Myo: {cur_Myo_iou} LV: {cur_LV_iou} ")
+    
+    return cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_jd
+
 
 def train(args, logger, device):
     bidir = args.bidir
@@ -454,15 +493,11 @@ def train(args, logger, device):
                                                         atlas_file=args.atlas)
 
     # extract shape from sampled input
-    imgshape = next(generator)[0][0].shape[1:-1]
+    # inshape = next(generator)[0][0].shape[1:-1]
     # print(f"next(generator)[0][0]: {next(generator)[0][0].shape}")
     # next(generator)[0][0]: (1, 216, 256, 8, 1)
-    # inshape = next(generator)[0][0].shape[1:-1]
     # inshape = (160, 192, 224)
-    # inshape = (192, 192, 192)
-    # inshape = (160, 160, 160)
-    # inshape = (128, 128, 128)
-    inshape = (160, 192, 160)
+    inshape = (192, 192, 192)
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -491,8 +526,7 @@ def train(args, logger, device):
     # prepare the model for training and send to device
     model.to(device)
     # model.train()
-    logger.info(f"VoxelMorph image shape: {imgshape} reshape: {inshape} \nModel: {model}")
-    # VoxelMorph image shape: (160, 192, 160) reshape: (160, 192, 160) 
+    logger.info(f"Model: {model}")
 
     # set optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -521,9 +555,8 @@ def train(args, logger, device):
     # losses += [vxm.losses.Dice().loss]
     # weights += [args.weight]
     
-    # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
-    best_dsc = 0
-
+    best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    
     # training loops
     for epoch in range(args.initial_epoch, args.epochs):
         epoch_loss = []
@@ -531,7 +564,6 @@ def train(args, logger, device):
         epoch_step_time = []
         model.train()
         for step in range(args.steps_per_epoch):
-
             step_start_time = time.time()
 
             # generate inputs (and true outputs) and convert them to tensors
@@ -551,13 +583,12 @@ def train(args, logger, device):
                 # print(f"n: {n}  y_true: {y_true[n].shape} y_pred: {y_pred[n].shape}")
                 # n: 0  y_true: torch.Size([1, 1, 160, 192, 224]) y_pred: torch.Size([1, 1, 160, 192, 224])
                 # n: 1  y_true: torch.Size([1, 3, 160, 192, 224]) y_pred: torch.Size([1, 3, 80, 96, 112])
-                # n: 2  y_true: torch.Size([1, 4, 160, 192, 224]) y_pred: torch.Size([1, 4, 160, 192, 224])
+                # n: 2  y_true: torch.Size([1, 4, 160, 192, 22  4]) y_pred: torch.Size([1, 4, 160, 192, 224])
                 curr_loss = loss_function(y_true[n], y_pred[n]) * weights[n]
                 loss_list.append(curr_loss.item())
                 loss += curr_loss
             # print(f"Training epoch: {epoch} -- step: {step} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-            # logger.info(f"Training epoch: {epoch} -- step: {step}/{args.steps_per_epoch} loss: {', '.join(['%.4e' % f for f in loss_list])}")
-            
+
             epoch_loss.append(loss_list)
             epoch_total_loss.append(loss.item())
 
@@ -579,18 +610,43 @@ def train(args, logger, device):
         logger.info(f"{epoch_info} - {time_info} - {loss_info}")
         
         # save model checkpoint
-        if epoch % args.epochs == 0:
-        # if epoch % 10 == 0:
+        if epoch % 5 == 0:
             with torch.no_grad():
-                dsc_mean, dsc_std = register(model, epoch, inshape, logger, args)
-    
-            best_dsc = max(dsc_mean, best_dsc)
-            logger.info(f"Epoch {epoch} --- Dice mean: {dsc_mean} std: {dsc_std} best_dsc: {best_dsc}")
-                         
+                cur_avg_dice, cur_avg_hd95, cur_avg_iou, cur_meanTre, cur_jd = register(model, epoch, logger, args)
+                    
+            # if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou and cur_meanTre < best_avg_tre:
+            if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
+                best_epoch = epoch
+                best_avg_Dice = cur_avg_dice
+                best_avg_HD95 = cur_avg_hd95
+                best_avg_iou = cur_avg_iou
+                best_avg_tre = cur_meanTre
+                model.save(os.path.join(args.checkpoint_dir, 'best_model.pth'))
+                # print(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+                logger.info(f"Saving best model to: {os.path.join(args.checkpoint_dir, 'best_model.pth')}")
+                
+        for f in os.listdir(args.sample_dir):
+            if "ep" + str(best_epoch) in f: continue
+            else:
+                os.remove(os.path.join(args.sample_dir, f))
+                # print(f"remove samples without < epoch {best_epoch} >")
+                
+        for f in os.listdir(args.checkpoint_dir):
+            if '%04d.pth' % best_epoch in f or 'log' in f or 'best' in f: continue
+            if not os.path.isdir(os.path.join(args.checkpoint_dir, f)):
+                os.remove(os.path.join(args.checkpoint_dir, f))
+            # print(f"remove pth without < epoch {best_epoch} >")
+            
+        model.save(os.path.join(args.checkpoint_dir, '%04d.pth' % epoch))
+        logger.info(f"Saving model to: {os.path.join(args.checkpoint_dir, '%04d.pth' % epoch)}")
+
+        print(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} JD {cur_jd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
+        logger.info(f"Epoch: {epoch} Current Dice {cur_avg_dice} HD95 {cur_avg_hd95} IOU {cur_avg_iou} TRE {cur_meanTre} JD {cur_jd} Best_Dice {best_avg_Dice} Best_HD95 {best_avg_HD95} Best_IOU {best_avg_iou} at epoch {best_epoch}")
+  
     # final model save
     # model.save(os.path.join(model_dir, '%04d.pt' % args.epochs))
     model.save(os.path.join(args.checkpoint_dir, 'final.pth'))
-    
+
 
 if __name__ == "__main__":
 
@@ -643,7 +699,7 @@ if __name__ == "__main__":
                         help='weight of deformation loss (default: 0.01)')
     # parse configs
     args = parser.parse_args()
-    print(f"Config: {args}")
+    # print(f"Config: {args}")
 
     # device handling
     gpus = args.gpu.split(',')
@@ -661,7 +717,7 @@ if __name__ == "__main__":
     os.makedirs(model_dir, exist_ok=True)
     
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_LPBA_" + curr_time)
+    args.checkpoint_dir = os.path.join(model_dir, "VoxelMorph_semi_ACDC_" + curr_time)
     args.sample_dir = os.path.join(args.checkpoint_dir, "samples")
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     os.makedirs(args.sample_dir, exist_ok=True)
