@@ -730,7 +730,7 @@ def train(args, logger, device):
     best_dsc = 0
 
     # training loops
-    for epoch in range(args.initial_epoch, args.epochs+1):
+    for epoch in range(args.initial_epoch, args.epochs + 1):
         epoch_loss = []
         epoch_total_loss = []
         epoch_step_time = []
@@ -816,7 +816,7 @@ if __name__ == "__main__":
     # training parameters
     parser.add_argument('--gpu', default='0', help='GPU ID number(s), comma-separated (default: 0)')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size (default: 1)')
-    parser.add_argument('--epochs', type=int, default=150000,
+    parser.add_argument('--epochs', type=int, default=5000,
                         help='number of training epochs (default: 1500)')
     parser.add_argument('--steps-per-epoch', type=int, default=100,
                         help='frequency of model saves (default: 100)')

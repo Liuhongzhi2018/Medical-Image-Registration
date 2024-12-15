@@ -239,7 +239,10 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 
 
 def OAIZIB_dice_val_VOI(y_pred, y_true):
-    VOI_lbls = [1, 2, 3, 4, 5]
+    # VOI_lbls = [1, 2, 3, 4, 5]
+    VOI_lbls = np.unique(y_true)
+    # print(f"OAIZIB_dice_val_VOI: {VOI_lbls}")
+    # OAIZIB_dice_val_VOI: [0 1 2 3 4 5]
 
     # pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     # true = y_true.detach().cpu().numpy()[0, 0, ...]
@@ -437,7 +440,8 @@ def train(args, logger, device):
     # next(generator)[0][0]: (160, 384, 384)
     # gen_shape = (160, 160, 160)
     # gen_shape = (192, 192, 192)
-    inshape = (160, 160, 160)
+    # inshape = (160, 160, 160)
+    inshape = (160, 192, 192)
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -495,9 +499,11 @@ def train(args, logger, device):
     # losses += [vxm.losses.Dice().loss]
     # weights += [args.weight]
     
-    best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
+    best_dsc = 0
+    
     # training loops
-    for epoch in range(args.initial_epoch, args.epochs):
+    for epoch in range(args.initial_epoch, args.epochs + 1):
         epoch_loss = []
         epoch_total_loss = []
         epoch_step_time = []
@@ -508,10 +514,22 @@ def train(args, logger, device):
 
             # generate inputs (and true outputs) and convert them to tensors
             inputs, y_true = next(generator)
+            # for i in inputs:
+            #     print(f"next(generator) {i.shape}")
+            # next(generator) (1, 160, 384, 384, 1)
+
             inputs = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in inputs]
             y_true = [torch.from_numpy(d).to(device).float().permute(0, 4, 1, 2, 3) for d in y_true]
+            # for i in inputs:
+            #     print(f"permute {i.shape}")
+            # permute torch.Size([1, 1, 160, 384, 384])
+            # permute torch.Size([1, 1, 160, 384, 384])
             inputs = [F.interpolate(d, size=inshape) for d in inputs]
             y_true = [F.interpolate(d, size=inshape) for d in y_true]
+            # for i in inputs:
+            #     print(f"interpolate {i.shape}")
+            # interpolate torch.Size([1, 1, 160, 192, 160])
+            # interpolate torch.Size([1, 1, 160, 192, 160])
 
             # run inputs through the model to produce a warped image and flow field
             y_pred = model(*inputs)
@@ -584,7 +602,7 @@ if __name__ == "__main__":
     # training parameters
     parser.add_argument('--gpu', default='0', help='GPU ID number(s), comma-separated (default: 0)')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size (default: 1)')
-    parser.add_argument('--epochs', type=int, default=1500,
+    parser.add_argument('--epochs', type=int, default=5000,
                         help='number of training epochs (default: 1500)')
     parser.add_argument('--steps-per-epoch', type=int, default=100,
                         help='frequency of model saves (default: 100)')
