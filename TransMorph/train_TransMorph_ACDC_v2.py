@@ -486,7 +486,7 @@ def main():
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/configs_TransMorph.py
     config = CONFIGS_TM['TransMorph']
-    # config.img_size = (160, 192, 224)
+    config.img_size = (256, 256, 32)
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # class TransMorph(nn.Module)
     logger.info(f"Config: {config}")
@@ -566,14 +566,14 @@ def main():
             # y = data[1]
             y = data_list[1]
             # print(f"training x: {x.shape} y: {y.shape}")
-            # training x: torch.Size([1, 1, 256, 216, 7]) y: torch.Size([1, 1, 256, 216, 7])
+            # training x: torch.Size([1, 1, 216, 256, 9]) y: torch.Size([1, 1, 216, 256, 9])
             
-            x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # x = x.permute([0, 1, 2, 3, 4])
-            y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # y = y.permute([0, 1, 2, 3, 4])
+            x = F.interpolate(x, size=config.img_size, mode='trilinear')
+            # x = x.permute([0, 1, 2, 4, 3])
+            y = F.interpolate(y, size=config.img_size, mode='trilinear')
+            # y = y.permute([0, 1, 2, 4, 3])
             # print(f"training resize x: {x.shape} y: {y.shape}")
-            # training resize x: torch.Size([1, 1, 160, 192, 224]) y: torch.Size([1, 1, 160, 192, 224])
+            # training resize x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256])
 
             x_in = torch.cat((x,y), dim=1)
             output = model(x_in)
@@ -620,7 +620,7 @@ def main():
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
         dsc_list = []
-        if epoch % max_epoch == 0:
+        if epoch % 100 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -638,14 +638,14 @@ def main():
                     # print(f"val x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     #  val x: torch.Size([1, 1, 232, 288, 15]) y: torch.Size([1, 1, 232, 288, 15]) x_seg: torch.Size([1, 1, 232, 288, 15]) y_seg: torch.Size([1, 1, 232, 288, 15])
                    
-                    x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x = x.permute([0, 1, 2, 3, 4])
-                    y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y = y.permute([0, 1, 2, 3, 4])
-                    x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x_seg = x_seg.permute([0, 1, 2, 3, 4])
-                    y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y_seg = y_seg.permute([0, 1, 2, 3, 4])
+                    x = F.interpolate(x, size=config.img_size, mode='trilinear')
+                    # x = x.permute([0, 1, 2, 4, 3])
+                    y = F.interpolate(y, size=config.img_size, mode='trilinear')
+                    # y = y.permute([0, 1, 2, 4, 3])
+                    x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='trilinear')
+                    # x_seg = x_seg.permute([0, 1, 2, 4, 3])
+                    y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='trilinear')
+                    # y_seg = y_seg.permute([0, 1, 2, 4, 3])
                     # print(f"val reshape x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     # val reshape x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256]) x_seg: torch.Size([1, 1, 256, 32, 256]) y_seg: torch.Size([1, 1, 256, 32, 256])
                     x_in = torch.cat((x, y), dim=1)

@@ -445,22 +445,30 @@ def main():
     val_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/OAIZIB/test_img_seg_list.txt'
     checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/OAIZIB/'
     weights = [1, 0.02] # loss weights
+
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
-    sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
-    if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
-        os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
-    if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
-        os.makedirs(checkpoint_dir + 'logs/'+save_dir)
-    if not os.path.exists(sample_dir):
-        os.makedirs(sample_dir)
-    sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
-    lr = 0.0001               # learning rate
+    checkpoint_dir = r"/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints"
+    model_dir = os.path.join(checkpoint_dir, "TransMorph_ACDC_" + curr_time)
+    sample_dir = os.path.join(model_dir, "samples")
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(sample_dir, exist_ok=True)
+
+    # save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
+    # sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
+    # if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
+    #     os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
+    # if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
+    #     os.makedirs(checkpoint_dir + 'logs/'+save_dir)
+    # if not os.path.exists(sample_dir):
+    #     os.makedirs(sample_dir)
+    # sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
+
+    lr = 0.0001                # learning rate
     # img_size = (160, 384, 384)
     # img_size = config.img_size
-    img_size = (96, 96, 96)
+    # img_size = (96, 96, 96)
     epoch_start = 0
-    max_epoch = 500           # max traning epoch 500
+    max_epoch = 500            # max traning epoch 500
     cont_training = False      # if continue training
     
     # Logger
@@ -468,7 +476,7 @@ def main():
     logger.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(checkpoint_dir + 'logs/' + save_dir, "train.log"))
+    file_handler = logging.FileHandler(os.path.join(model_dir, "train.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
@@ -481,7 +489,7 @@ def main():
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/configs_TransMorph.py
     config = CONFIGS_TM['TransMorph']
     # config.img_size = (160, 384, 384)
-    config.img_size = (96, 96, 96)
+    # config.img_size = (96, 96, 96)
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # class TransMorph(nn.Module)
     model = TransMorph.TransMorph(config)
@@ -560,14 +568,17 @@ def main():
             # y = data[1]
             y = data_list[1]
             # print(f"training x: {x.shape} y: {y.shape}")
+            # training x: torch.Size([1, 1, 160, 384, 384]) y: torch.Size([1, 1, 160, 384, 384])
+
             # training x: torch.Size([1, 1, 216, 256, 9]) y: torch.Size([1, 1, 216, 256, 9])
             
-            x = F.interpolate(x, size=img_size, mode='trilinear')
-            x = x.permute([0, 1, 2, 4, 3])
-            y = F.interpolate(y, size=img_size, mode='trilinear')
-            y = y.permute([0, 1, 2, 4, 3])
+            x = F.interpolate(x, size=config.img_size, mode='trilinear')
+            # x = x.permute([0, 1, 2, 4, 3])
+            y = F.interpolate(y, size=config.img_size, mode='trilinear')
+            # y = y.permute([0, 1, 2, 4, 3])
             # print(f"training resize x: {x.shape} y: {y.shape}")
             # training resize x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256])
+            # training resize x: torch.Size([1, 1, 160, 192, 224]) y: torch.Size([1, 1, 160, 192, 224])
 
             x_in = torch.cat((x,y), dim=1)
             output = model(x_in)
@@ -614,7 +625,7 @@ def main():
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
         dsc_list = []
-        if epoch % 100 == 0:
+        if epoch % max_epoch == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -632,14 +643,14 @@ def main():
                     # print(f"val x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     #  val x: torch.Size([1, 1, 232, 288, 15]) y: torch.Size([1, 1, 232, 288, 15]) x_seg: torch.Size([1, 1, 232, 288, 15]) y_seg: torch.Size([1, 1, 232, 288, 15])
                    
-                    x = F.interpolate(x, size=img_size, mode='trilinear')
-                    x = x.permute([0, 1, 2, 4, 3])
-                    y = F.interpolate(y, size=img_size, mode='trilinear')
-                    y = y.permute([0, 1, 2, 4, 3])
-                    x_seg = F.interpolate(x_seg.float(), size=img_size, mode='trilinear')
-                    x_seg = x_seg.permute([0, 1, 2, 4, 3])
-                    y_seg = F.interpolate(y_seg.float(), size=img_size, mode='trilinear')
-                    y_seg = y_seg.permute([0, 1, 2, 4, 3])
+                    x = F.interpolate(x, size=config.img_size, mode='trilinear')
+                    # x = x.permute([0, 1, 2, 4, 3])
+                    y = F.interpolate(y, size=config.img_size, mode='trilinear')
+                    # y = y.permute([0, 1, 2, 4, 3])
+                    x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='trilinear')
+                    # x_seg = x_seg.permute([0, 1, 2, 4, 3])
+                    y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='trilinear')
+                    # y_seg = y_seg.permute([0, 1, 2, 4, 3])
                     # print(f"val reshape x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     # val reshape x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256]) x_seg: torch.Size([1, 1, 256, 32, 256]) y_seg: torch.Size([1, 1, 256, 32, 256])
                     x_in = torch.cat((x, y), dim=1)

@@ -266,10 +266,10 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 #     warp_flow = warp_flow.permute([0, 1, 2, 4, 3])
 #     warp_seg = warp_seg.permute([0, 1, 2, 4, 3])
 #     y_seg = y_seg.permute([0, 1, 2, 4, 3])
-#     print(f"register reshape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
+#     # print(f"register reshape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
 #     # register reshape: torch.Size([1, 1, 160, 224, 192]) torch.Size([1, 1, 160, 224, 192]) torch.Size([1, 3, 160, 224, 192]) torch.Size([1, 1, 160, 224, 192])
     
-#     name = mov_path.split('/')[-1].split('_')[0]
+#     name = mov_path.split('/')[-1].split('.')[0]
 #     # print(f"register mov_path: {mov_path}")
 #     data_in = sitk.ReadImage(mov_path)
 #     shape_img = data_in.GetSize()
@@ -331,10 +331,13 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 #     return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 
-def ACDC_dice_val_VOI(y_pred, y_true):
-    # print(f"ACDC_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
-    # ACDC_dice_val_VOI y_pred (8, 256, 214) y_true (8, 256, 214)
-    VOI_lbls = [1, 2, 3]
+def OAIZIB_dice_val_VOI(y_pred, y_true):
+    print(f"OAIZIB_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
+    VOI_lbls = [1, 2, 3, 4, 5]
+    # VOI_lbls = np.unique(y_true)
+    print(f"labels: {np.unique(y_true)}")
+    # print(f"OAIZIB_dice_val_VOI: {VOI_lbls}")
+    # OAIZIB_dice_val_VOI: [0 1 2 3 4 5]
 
     # pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     # true = y_true.detach().cpu().numpy()[0, 0, ...]
@@ -349,9 +352,8 @@ def ACDC_dice_val_VOI(y_pred, y_true):
         intersection = np.sum(intersection)
         union = np.sum(pred_i) + np.sum(true_i)
         dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] = dsc
+        DSCs[idx] =dsc
         idx += 1
-    # print(f"DSCs: {DSCs}")
     return np.mean(DSCs)
 
 
@@ -371,9 +373,8 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     y_seg = y_seg.permute([0, 1, 2, 4, 3])
     # print(f"register reshape: {warp_img.shape} {warp_seg.shape} {warp_flow.shape} {y_seg.shape}")
     # register reshape: torch.Size([1, 1, 160, 224, 192]) torch.Size([1, 1, 160, 224, 192]) torch.Size([1, 3, 160, 224, 192]) torch.Size([1, 1, 160, 224, 192])
-    # register reshape: torch.Size([1, 1, 256, 256, 32]) torch.Size([1, 1, 256, 256, 32]) torch.Size([1, 3, 256, 256, 32]) torch.Size([1, 1, 256, 256, 32])
     
-    name = mov_path.split('/')[-1].split('_')[0]
+    name = mov_path.split('/')[-1].split('.')[0]
     # print(f"register mov_path: {mov_path}")
     data_in = sitk.ReadImage(mov_path)
     shape_img = data_in.GetSize()
@@ -402,7 +403,7 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # gt_seg_array = translabel(gt_seg_array)
     # print(f"after translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
     
-    # tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+    tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
     
     savedSample_warped = sitk.GetImageFromArray(warp_img_array)
     savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
@@ -432,41 +433,34 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"Saving warped seg: {warped_seg_path}")
     # print(f"Saving warped imgflow: {warped_flow_path}")
 
-    dsc = ACDC_dice_val_VOI(warp_seg_array, gt_seg_array)
-
+    dsc = OAIZIB_dice_val_VOI(warp_seg_array, gt_seg_array)
+    
     return dsc
+
 
 
 def main():
     batch_size = 1
-    train_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/ACDC/train_img_seg_list.txt'
-    val_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/ACDC/test_img_seg_list.txt'
-    # checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/ACDC/'
+    train_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/OAIZIB/train_img_seg_list.txt'
+    val_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/OAIZIB/test_img_seg_list.txt'
+    checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/OAIZIB/'
     weights = [1, 0.02] # loss weights
-
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    # save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
-    # sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
-    checkpoint_dir = r"/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints"
-    model_dir = os.path.join(checkpoint_dir, "TransMorph_ACDC_" + curr_time)
-    sample_dir = os.path.join(model_dir, "samples")
-    os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(sample_dir, exist_ok=True)
-
-    # if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
-    #     os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
-    # if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
-    #     os.makedirs(checkpoint_dir + 'logs/'+save_dir)
-    # if not os.path.exists(sample_dir):
-    #     os.makedirs(sample_dir)
-
-    # sys.stdout = Logger(model_dir + 'logs/'+save_dir)
+    save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
+    sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
+    if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
+        os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
+    if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
+        os.makedirs(checkpoint_dir + 'logs/'+save_dir)
+    if not os.path.exists(sample_dir):
+        os.makedirs(sample_dir)
+    sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
     lr = 0.0001               # learning rate
-    # img_size = (232, 256, 10)
+    # img_size = (160, 384, 384)
     # img_size = config.img_size
-    # img_size = (256, 256, 32)
+    img_size = (96, 96, 96)
     epoch_start = 0
-    max_epoch = 1000           # max traning epoch 500 1000
+    max_epoch = 500           # max traning epoch 500
     cont_training = False      # if continue training
     
     # Logger
@@ -474,7 +468,7 @@ def main():
     logger.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(model_dir, "train.log"))
+    file_handler = logging.FileHandler(os.path.join(checkpoint_dir + 'logs/' + save_dir, "train.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
@@ -486,10 +480,10 @@ def main():
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/configs_TransMorph.py
     config = CONFIGS_TM['TransMorph']
-    # config.img_size = (160, 192, 224)
+    # config.img_size = (160, 384, 384)
+    config.img_size = (96, 96, 96)
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # class TransMorph(nn.Module)
-    logger.info(f"Config: {config}")
     model = TransMorph.TransMorph(config)
     model.cuda()
 
@@ -566,14 +560,14 @@ def main():
             # y = data[1]
             y = data_list[1]
             # print(f"training x: {x.shape} y: {y.shape}")
-            # training x: torch.Size([1, 1, 256, 216, 7]) y: torch.Size([1, 1, 256, 216, 7])
+            # training x: torch.Size([1, 1, 216, 256, 9]) y: torch.Size([1, 1, 216, 256, 9])
             
-            x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # x = x.permute([0, 1, 2, 3, 4])
-            y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # y = y.permute([0, 1, 2, 3, 4])
+            x = F.interpolate(x, size=img_size, mode='trilinear')
+            x = x.permute([0, 1, 2, 4, 3])
+            y = F.interpolate(y, size=img_size, mode='trilinear')
+            y = y.permute([0, 1, 2, 4, 3])
             # print(f"training resize x: {x.shape} y: {y.shape}")
-            # training resize x: torch.Size([1, 1, 160, 192, 224]) y: torch.Size([1, 1, 160, 192, 224])
+            # training resize x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256])
 
             x_in = torch.cat((x,y), dim=1)
             output = model(x_in)
@@ -620,7 +614,7 @@ def main():
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
         dsc_list = []
-        if epoch % max_epoch == 0:
+        if epoch % 100 == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
@@ -638,14 +632,14 @@ def main():
                     # print(f"val x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     #  val x: torch.Size([1, 1, 232, 288, 15]) y: torch.Size([1, 1, 232, 288, 15]) x_seg: torch.Size([1, 1, 232, 288, 15]) y_seg: torch.Size([1, 1, 232, 288, 15])
                    
-                    x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x = x.permute([0, 1, 2, 3, 4])
-                    y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y = y.permute([0, 1, 2, 3, 4])
-                    x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x_seg = x_seg.permute([0, 1, 2, 3, 4])
-                    y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y_seg = y_seg.permute([0, 1, 2, 3, 4])
+                    x = F.interpolate(x, size=img_size, mode='trilinear')
+                    x = x.permute([0, 1, 2, 4, 3])
+                    y = F.interpolate(y, size=img_size, mode='trilinear')
+                    y = y.permute([0, 1, 2, 4, 3])
+                    x_seg = F.interpolate(x_seg.float(), size=img_size, mode='trilinear')
+                    x_seg = x_seg.permute([0, 1, 2, 4, 3])
+                    y_seg = F.interpolate(y_seg.float(), size=img_size, mode='trilinear')
+                    y_seg = y_seg.permute([0, 1, 2, 4, 3])
                     # print(f"val reshape x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     # val reshape x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256]) x_seg: torch.Size([1, 1, 256, 32, 256]) y_seg: torch.Size([1, 1, 256, 32, 256])
                     x_in = torch.cat((x, y), dim=1)
@@ -658,15 +652,11 @@ def main():
                     
                     # dsc = utils.dice_val(def_out.long(), y_seg.long(), 46)
                     # dsc = utils.dice_val(def_out.long(), y_seg.long(), 36)
-                    # dsc = ACDC_dice_val_VOI(def_out, y_seg)
                     # eval_dsc.update(dsc.item(), x.size(0))
                     # print(eval_dsc.avg)
-                    # logger.info('Epoch {} eval_dsc {:.4f}'.format(epoch, dsc))
+                    # logger.info('Epoch {} eval_dsc {:.4f}'.format(epoch, eval_dsc.avg))
             
                     # tre, jd, mdice, mhd95, mIOU, dice_list, hd95_list, IOU_list = register(epoch, name, output, def_out, y_seg, sample_dir)
-                    dsc = register(epoch, name, output, def_out, y_seg, sample_dir)
-                    logger.info(f"Evaluation {name.split('/')[-1]} Dice: {dsc}")
-                    dsc_list.append(dsc)
                     
                     # logger.info(f"Epoch: {epoch} {name} mean Dice {mdice} - {', '.join(['%.4e' % f for f in dice_list])}")
                     # logger.info(f"Epoch: {epoch} {name} mean HD95 {mhd95} - {', '.join(['%.4e' % f for f in hd95_list])}")
@@ -678,6 +668,10 @@ def main():
                     # mIOU_list.append(mIOU)
                     # tre_list.append(tre)
                     # jd_list.append(jd)
+
+                    dsc = register(epoch, name, output, def_out, y_seg, sample_dir)
+                    logger.info(f"Evaluation {name.split('/')[-1]} Dice: {dsc}")
+                    dsc_list.append(dsc)
                     
             dsc_mean, dsc_std = np.mean(dsc_list), np.std(dsc_list)
             # best_dsc = max(eval_dsc.avg, best_dsc)
@@ -686,9 +680,9 @@ def main():
             logger.info(f"Epoch {epoch} --- Dice mean: {dsc_mean} std: {dsc_std} best_dsc: {best_dsc}")
             
             # print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
-            # # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]
+            # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]
 
-            # cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
+        #     cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
         #     cur_meanTre = np.mean(tre_list)
         #     cur_meanjd = np.mean(jd_list)
             

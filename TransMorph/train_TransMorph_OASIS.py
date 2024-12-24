@@ -333,9 +333,13 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 
 
 def OASIS_dice_val_VOI(y_pred, y_true):
-    print(f"OASIS_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
+    # print(f"OASIS_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
+    # OASIS_dice_val_VOI y_pred (192, 224, 160) y_true (192, 224, 160)
     VOI_lbls = [i for i in range(1, 36)]
-    print(f"labels: {np.unique(y_true)}")
+    # print(f"labels: {np.unique(y_true)}")
+    # labels: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+    # 24 25 26 27 28 29 30 31 32 33 34 35]
+
     # pred = y_pred.detach().cpu().numpy()[0, 0, ...]
     # true = y_true.detach().cpu().numpy()[0, 0, ...]
     pred = y_pred
@@ -444,15 +448,20 @@ def main():
     checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/OASIS/'
     weights = [1, 0.02] # loss weights
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
-    sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
-    if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
-        os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
-    if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
-        os.makedirs(checkpoint_dir + 'logs/'+save_dir)
-    if not os.path.exists(sample_dir):
-        os.makedirs(sample_dir)
-    sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
+    # save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
+    # sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
+    checkpoint_dir = r"/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints"
+    model_dir = os.path.join(checkpoint_dir, "TransMorph_OASIS_" + curr_time)
+    sample_dir = os.path.join(model_dir, "samples")
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(sample_dir, exist_ok=True)
+    # if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
+    #     os.makedirs(checkpoint_dir + 'experiments/'+save_dir)
+    # if not os.path.exists(checkpoint_dir + 'logs/'+save_dir):
+    #     os.makedirs(checkpoint_dir + 'logs/'+save_dir)
+    # if not os.path.exists(sample_dir):
+    #     os.makedirs(sample_dir)
+    # sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
     lr = 0.0001               # learning rate
     # img_size = (160, 192, 224)
     # img_size = (80, 96, 112)
@@ -466,7 +475,7 @@ def main():
     logger.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(checkpoint_dir + 'logs/' + save_dir, "train.log"))
+    file_handler = logging.FileHandler(os.path.join(model_dir, "train.log"))
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
@@ -539,7 +548,7 @@ def main():
     # writer = SummaryWriter(log_dir=checkpoint_dir + 'logs/' + save_dir)
     # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
     
-    for epoch in range(epoch_start, max_epoch+1):
+    for epoch in range(epoch_start, max_epoch + 1):
         print('Training Starts')
         '''
         Training
@@ -612,7 +621,7 @@ def main():
         eval_dsc = utils.AverageMeter()
         # mdice_list, mhd95_list, mIOU_list, tre_list, jd_list = [], [], [], [], []
         dsc_list = []
-        if epoch % 500 == 0:
+        if epoch % max_epoch == 0:
             with torch.no_grad():
                 for data in val_loader:
                     model.eval()
