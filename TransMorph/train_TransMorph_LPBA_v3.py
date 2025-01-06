@@ -294,10 +294,17 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 #     # Transpose (160, 192, 160) to: warp_img (160, 192, 160) deform: (160, 192, 160, 3) warp_seg: (160, 192, 160) gt_seg: (160, 192, 160)
     
 #     # print(f"before translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-#     # warp_seg_array = translabel(warp_seg_array)
-#     # gt_seg_array = translabel(gt_seg_array)
+#     # before translabel: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 
+#     #                     45 46 47 48 49 50 51 52 53 54 55 56] 
+#     # [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56]
+#     warp_seg_array = translabel(warp_seg_array)
+#     gt_seg_array = translabel(gt_seg_array)
 #     # print(f"after translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    
+#     # after translabel: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  
+#     #                    83 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165 166 181 182] 
+#     # [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
+#     #  84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165 166 181 182]
+
 #     tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
     
 #     savedSample_warped = sitk.GetImageFromArray(warp_img_array)
@@ -331,16 +338,22 @@ def compute_per_class_Dice_HD95_IOU_TRE_NDV(pre, gt, gtspacing):
 #     return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
 
 
-def OAIZIB_dice_val_VOI(y_pred, y_true):
-    # print(f"OAIZIB_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
-    VOI_lbls = [1, 2, 3, 4, 5]
-    # VOI_lbls = np.unique(y_true)
-    # print(f"labels: {np.unique(y_true)}")
-    # print(f"OAIZIB_dice_val_VOI: {VOI_lbls}")
-    # OAIZIB_dice_val_VOI: [0 1 2 3 4 5]
+def LPBA_dice_val_VOI(y_pred, y_true):
+    # print(f"LPBA_dice_val_VOI y_pred {y_pred.shape} y_true {y_true.shape}")
+    # LPBA_dice_val_VOI y_pred (160, 192, 160) y_true (160, 192, 160)
+    # VOI_lbls = [i for i in range(1, 56+1)]
 
-    # pred = y_pred.detach().cpu().numpy()[0, 0, ...]
-    # true = y_true.detach().cpu().numpy()[0, 0, ...]
+    # VOI_lbls = np.unique(y_true)
+    # print(f"VOI_lbls {VOI_lbls}")
+    VOI_lbls = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 
+                41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 61, 62, 63, 64, 65, 
+                66, 67, 68, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 
+                101, 102, 121, 122, 161, 162, 163, 164, 165, 166, 181, 182]
+    # VOI_lbls [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43
+    # 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
+    # 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165
+    # 166 181 182]
+
     pred = y_pred
     true = y_true
     DSCs = np.zeros((len(VOI_lbls), 1))
@@ -352,8 +365,9 @@ def OAIZIB_dice_val_VOI(y_pred, y_true):
         intersection = np.sum(intersection)
         union = np.sum(pred_i) + np.sum(true_i)
         dsc = (2.*intersection) / (union + 1e-5)
-        DSCs[idx] =dsc
+        DSCs[idx] = dsc
         idx += 1
+    # print(f"DSCs: {DSCs}")
     return np.mean(DSCs)
 
 
@@ -399,11 +413,18 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # Transpose (160, 192, 160) to: warp_img (160, 192, 160) deform: (160, 192, 160, 3) warp_seg: (160, 192, 160) gt_seg: (160, 192, 160)
     
     # print(f"before translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    # warp_seg_array = translabel(warp_seg_array)
-    # gt_seg_array = translabel(gt_seg_array)
+    # before translabel: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 
+    #                     45 46 47 48 49 50 51 52 53 54 55 56] 
+    # [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56]
+    warp_seg_array = translabel(warp_seg_array)
+    gt_seg_array = translabel(gt_seg_array)
     # print(f"after translabel: {np.unique(warp_seg_array)} {np.unique(gt_seg_array)}")
-    
-    # tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+    # after translabel: [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  
+    #                    83 84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165 166 181 182] 
+    # [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
+    #  84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165 166 181 182]
+
+    tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
     
     savedSample_warped = sitk.GetImageFromArray(warp_img_array)
     savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
@@ -432,27 +453,22 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # print(f"Saving warped img: {warped_img_path}")
     # print(f"Saving warped seg: {warped_seg_path}")
     # print(f"Saving warped imgflow: {warped_flow_path}")
-
-    dsc = OAIZIB_dice_val_VOI(warp_seg_array, gt_seg_array)
     
-    return dsc
+    # return tre, jd, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list
+    
+    dsc = LPBA_dice_val_VOI(warp_seg_array, gt_seg_array)
 
+    return dsc
 
 
 def main():
     batch_size = 1
-    train_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/OAIZIB/train_img_seg_list.txt'
-    val_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/OAIZIB/test_img_seg_list.txt'
-    checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/OAIZIB/'
+    train_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/LPBA/train_img_seg_list.txt'
+    val_file = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph/images/LPBA/test_img_seg_list.txt'
+    # checkpoint_dir = '/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints/LPBA/'
     weights = [1, 0.02] # loss weights
-
+    
     curr_time = time.strftime('%Y-%m-%d-%H-%M-%S', time.localtime())
-    checkpoint_dir = r"/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints"
-    model_dir = os.path.join(checkpoint_dir, "TransMorph_OAIZIB_" + curr_time)
-    sample_dir = os.path.join(model_dir, "samples")
-    os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(sample_dir, exist_ok=True)
-
     # save_dir = curr_time+ '_TransMorph_mse_{}_diffusion_{}/'.format(weights[0], weights[1])
     # sample_dir = checkpoint_dir + 'experiments/' + save_dir + "samples"
     # if not os.path.exists(checkpoint_dir + 'experiments/'+save_dir):
@@ -462,13 +478,19 @@ def main():
     # if not os.path.exists(sample_dir):
     #     os.makedirs(sample_dir)
     # sys.stdout = Logger(checkpoint_dir + 'logs/'+save_dir)
+    checkpoint_dir = r"/mnt/lhz/Github/Image_registration/TransMorph/TransMorph_checkpoints"
+    model_dir = os.path.join(checkpoint_dir, "TransMorph_LPBA_" + curr_time)
+    sample_dir = os.path.join(model_dir, "samples")
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(sample_dir, exist_ok=True)
 
-    lr = 0.0001                # learning rate
-    # img_size = (160, 384, 384)
+    lr = 0.0001               # learning rate
+    # img_size = (160, 192, 160)
     # img_size = config.img_size
-    # img_size = (96, 96, 96)
+    # img_size = (96, 128, 96)
+    # img_size = (160, 192, 160)
     epoch_start = 0
-    max_epoch = 2000            # max traning epoch 500 1000
+    max_epoch = 1000           # max traning epoch 500 1000
     cont_training = False      # if continue training
     
     # Logger
@@ -480,6 +502,7 @@ def main():
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stdout_handler)
+    # logger.info(f"Config: {args}")
 
     '''
     Initialize model
@@ -487,12 +510,15 @@ def main():
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/configs_TransMorph.py
     config = CONFIGS_TM['TransMorph']
-    # config.img_size = (160, 384, 384)
-    # config.img_size = (96, 96, 96)
+    # config.img_size = (160, 160, 192)
+    # config.img_size = (96, 96, 128)
+    # config.img_size = (160, 160, 192)
+    # config.img_size = (160, 192, 160)
+    logger.info(f"Config: {config}")
+    
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/models/TransMorph.py
     # class TransMorph(nn.Module)
     model = TransMorph.TransMorph(config)
-    logger.info(f"Config: {config}")
     model.cuda()
 
     '''
@@ -535,9 +561,9 @@ def main():
     
     # /mnt/lhz/Github/Image_registration/TransMorph/TransMorph/data/datasets.py
     # train_set = datasets.JHUBrainDataset(glob.glob(train_dir + '*.pkl'), transforms=train_composed)
-    train_set = datasets.OASISDataset(fn=train_file, transforms=train_composed)
+    train_set = datasets.LPBADataset(fn=train_file, transforms=train_composed)
     # val_set = datasets.JHUBrainInferDataset(glob.glob(val_dir + '*.pkl'), transforms=val_composed)
-    val_set = datasets.OASISDatasetVal(fn=val_file, transforms=val_composed)
+    val_set = datasets.LPBADatasetVal(fn=val_file, transforms=val_composed)
     
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
@@ -549,7 +575,7 @@ def main():
     best_dsc = 0
     # writer = SummaryWriter(log_dir=checkpoint_dir + 'logs/' + save_dir)
     # best_epoch, best_avg_Dice, best_avg_HD95, best_avg_iou, best_avg_tre = 0, 0, 10000, 0, 10000
-    for epoch in range(epoch_start, max_epoch + 1):
+    for epoch in range(epoch_start, max_epoch+1):
         print('Training Starts')
         '''
         Training
@@ -562,21 +588,20 @@ def main():
             adjust_learning_rate(optimizer, epoch, max_epoch, lr)
             # data = [t.cuda() for t in data]
             data_list = [t.cuda() for t in data if not isinstance(t, list)]
-            name = data[0][0]
+            # name = data[0][0]
             # x = data[0]
             x = data_list[0]
             # y = data[1]
             y = data_list[1]
             # print(f"training x: {x.shape} y: {y.shape}")
-            # training x: torch.Size([1, 1, 160, 384, 384]) y: torch.Size([1, 1, 160, 384, 384])
-
-            x = x.permute([0, 1, 2, 4, 3])
-            x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            y = y.permute([0, 1, 2, 4, 3])
-            y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
+            # training x: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
             
+            x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
+            # x = x.permute([0, 1, 2, 3, 4])
+            y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
+            # y = y.permute([0, 1, 2, 3, 4])
             # print(f"training resize x: {x.shape} y: {y.shape}")
-            # training resize x: torch.Size([1, 1, 160, 192, 224]) y: torch.Size([1, 1, 160, 192, 224])
+            # training resize x: torch.Size([1, 1, 64, 64, 96]) y: torch.Size([1, 1, 64, 64, 96])
 
             x_in = torch.cat((x,y), dim=1)
             output = model(x_in)
@@ -588,6 +613,7 @@ def main():
                 loss_vals.append(curr_loss)
                 loss += curr_loss
             loss_all.update(loss.item(), y.numel())
+            
             # compute gradient and do SGD step
             optimizer.zero_grad()
             loss.backward()
@@ -610,7 +636,8 @@ def main():
             optimizer.step()
 
             # print('Iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(idx, len(train_loader), loss.item(), loss_vals[0].item()/2, loss_vals[1].item()/2))
-            logger.info('Epoch {} iter {} of {} {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item()/2, loss_vals[1].item()/2))
+            # logger.info('Epoch {} iter {} of {} {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), name, loss.item(), loss_vals[0].item()/2, loss_vals[1].item()/2))
+            logger.info('Epoch {} iter {} of {} loss {:.4f}, Img Sim: {:.6f}, Reg: {:.6f}'.format(epoch, idx, len(train_loader), loss.item(), loss_vals[0].item()/2, loss_vals[1].item()/2))
 
         # writer.add_scalar('Loss/train', loss_all.avg, epoch)
         # print('Epoch {} loss {:.4f}'.format(epoch, loss_all.avg))
@@ -639,19 +666,18 @@ def main():
                     # y_seg = data[3]
                     y_seg = data_list[3]
                     # print(f"val x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
-                    #  val x: torch.Size([1, 1, 232, 288, 15]) y: torch.Size([1, 1, 232, 288, 15]) x_seg: torch.Size([1, 1, 232, 288, 15]) y_seg: torch.Size([1, 1, 232, 288, 15])
+                    # val x: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160]) x_seg: torch.Size([1, 1, 160, 192, 160]) y_seg: torch.Size([1, 1, 160, 192, 160])
                    
-                    x = x.permute([0, 1, 2, 4, 3])
                     x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    y = y.permute([0, 1, 2, 4, 3])
+                    # x = x.permute([0, 1, 2, 3, 4])
                     y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    x_seg = x_seg.permute([0, 1, 2, 4, 3])
+                    # y = y.permute([0, 1, 2, 3, 4])
                     x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    y_seg = y_seg.permute([0, 1, 2, 4, 3])
+                    # x_seg = x_seg.permute([0, 1, 2, 3, 4])
                     y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    
+                    # y_seg = y_seg.permute([0, 1, 2, 3, 4])
                     # print(f"val reshape x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
-                    # val reshape x: torch.Size([1, 1, 256, 32, 256]) y: torch.Size([1, 1, 256, 32, 256]) x_seg: torch.Size([1, 1, 256, 32, 256]) y_seg: torch.Size([1, 1, 256, 32, 256])
+                    # val reshape x: torch.Size([1, 1, 64, 64, 96]) y: torch.Size([1, 1, 64, 64, 96]) x_seg: torch.Size([1, 1, 64, 64, 96]) y_seg: torch.Size([1, 1, 64, 64, 96])
                     x_in = torch.cat((x, y), dim=1)
                     
                     grid_img = mk_grid_img(8, 1, config.img_size)
@@ -661,7 +687,7 @@ def main():
                     def_grid = reg_model_bilin([grid_img.float(), output[1].cuda()])
                     
                     # dsc = utils.dice_val(def_out.long(), y_seg.long(), 46)
-                    # dsc = utils.dice_val(def_out.long(), y_seg.long(), 36)
+                    # dsc = utils.dice_val(def_out.long(), y_seg.long(), 57)
                     # eval_dsc.update(dsc.item(), x.size(0))
                     # print(eval_dsc.avg)
                     # logger.info('Epoch {} eval_dsc {:.4f}'.format(epoch, eval_dsc.avg))
@@ -684,20 +710,19 @@ def main():
                     dsc_list.append(dsc)
                     
             dsc_mean, dsc_std = np.mean(dsc_list), np.std(dsc_list)
-            # best_dsc = max(eval_dsc.avg, best_dsc)
             best_dsc = max(dsc_mean, best_dsc)
             # logger.info(f"epoch {epoch} best_dsc: {best_dsc}")
             logger.info(f"Epoch {epoch} --- Dice mean: {dsc_mean} std: {dsc_std} best_dsc: {best_dsc}")
-            
+
             # print(f"mdice_list {mdice_list} mhd95_list {mhd95_list} mIOU_list {mIOU_list} tre_list {tre_list}")
             # mdice_list [0.41224659630603416, 0.37837790728782345] mhd95_list [10.408810780398293, 10.701495913910907] mIOU_list [0.266695296830699, 0.24285838452979136] tre_list [4.961387619758394, 6.5687500231085005]
 
-        #     cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
-        #     cur_meanTre = np.mean(tre_list)
-        #     cur_meanjd = np.mean(jd_list)
+            # cur_avg_dice, cur_avg_hd95, cur_avg_iou = np.mean(mdice_list), np.mean(mhd95_list), np.mean(mIOU_list)
+            # cur_meanTre = np.mean(tre_list)
+            # cur_meanjd = np.mean(jd_list)
             
-        #     logger.info(f"Epoch: {epoch} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre} avgJD: {cur_meanjd}")    
-        #     # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
+            # logger.info(f"Epoch: {epoch} - avgDice: {cur_avg_dice} avgHD95: {cur_avg_hd95} avgIOU: {cur_avg_iou} avgTRE: {cur_meanTre} avgJD: {cur_meanjd}")    
+            # Epoch: 0 - avgDice: 0.3953122517969288 avgHD95: 10.5551533471546 avgIOU: 0.2547768406802452 avgTRE: 5.765068821433447 avgJD: 0.0
 
         #     if cur_avg_dice > best_avg_Dice and cur_avg_hd95 < best_avg_HD95 and cur_avg_iou > best_avg_iou:
         #         best_epoch = epoch

@@ -424,7 +424,7 @@ def register(epoch, mov_path, output, def_out, y_seg, sample_dir):
     # [  0  21  22  23  24  25  26  27  28  29  30  31  32  33  34  41  42  43 44  45  46  47  48  49  50  61  62  63  64  65  66  67  68  81  82  83
     #  84  85  86  87  88  89  90  91  92 101 102 121 122 161 162 163 164 165 166 181 182]
 
-    tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
+    # tre, mean_Dice, mean_HD95, mean_iou, n_dice_list, n_hd95_list, n_iou_list = compute_per_class_Dice_HD95_IOU_TRE_NDV(warp_seg_array, gt_seg_array, ED_spacing)
     
     savedSample_warped = sitk.GetImageFromArray(warp_img_array)
     savedSample_seg = sitk.GetImageFromArray(warp_seg_array)
@@ -490,7 +490,7 @@ def main():
     # img_size = (96, 128, 96)
     # img_size = (160, 192, 160)
     epoch_start = 0
-    max_epoch = 500           # max traning epoch 500
+    max_epoch = 1000           # max traning epoch 500 1000
     cont_training = False      # if continue training
     
     # Logger
@@ -596,10 +596,11 @@ def main():
             # print(f"training x: {x.shape} y: {y.shape}")
             # training x: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160])
             
+            x = x.permute([0, 1, 2, 4, 3])
             x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # x = x.permute([0, 1, 2, 3, 4])
+            y = y.permute([0, 1, 2, 4, 3])
             y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-            # y = y.permute([0, 1, 2, 3, 4])
+            
             # print(f"training resize x: {x.shape} y: {y.shape}")
             # training resize x: torch.Size([1, 1, 64, 64, 96]) y: torch.Size([1, 1, 64, 64, 96])
 
@@ -668,14 +669,15 @@ def main():
                     # print(f"val x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     # val x: torch.Size([1, 1, 160, 192, 160]) y: torch.Size([1, 1, 160, 192, 160]) x_seg: torch.Size([1, 1, 160, 192, 160]) y_seg: torch.Size([1, 1, 160, 192, 160])
                    
+                    x = x.permute([0, 1, 2, 4, 3])
                     x = F.interpolate(x, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x = x.permute([0, 1, 2, 3, 4])
+                    y = y.permute([0, 1, 2, 4, 3])
                     y = F.interpolate(y, size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y = y.permute([0, 1, 2, 3, 4])
+                    x_seg = x_seg.permute([0, 1, 2, 4, 3])
                     x_seg = F.interpolate(x_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # x_seg = x_seg.permute([0, 1, 2, 3, 4])
+                    y_seg = y_seg.permute([0, 1, 2, 4, 3])
                     y_seg = F.interpolate(y_seg.float(), size=config.img_size, mode='nearest') # 'nearest' 'area' 'trilinear') 
-                    # y_seg = y_seg.permute([0, 1, 2, 3, 4])
+                    
                     # print(f"val reshape x: {x.shape} y: {y.shape} x_seg: {x_seg.shape} y_seg: {y_seg.shape}")
                     # val reshape x: torch.Size([1, 1, 64, 64, 96]) y: torch.Size([1, 1, 64, 64, 96]) x_seg: torch.Size([1, 1, 64, 64, 96]) y_seg: torch.Size([1, 1, 64, 64, 96])
                     x_in = torch.cat((x, y), dim=1)
