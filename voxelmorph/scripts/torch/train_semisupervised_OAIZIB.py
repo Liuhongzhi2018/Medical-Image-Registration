@@ -441,7 +441,9 @@ def train(args, logger, device):
     # gen_shape = (160, 160, 160)
     # gen_shape = (192, 192, 192)
     # inshape = (160, 160, 160)
-    inshape = (160, 192, 192)
+    # inshape = (160, 192, 192)
+    # inshape = (160, 256, 256)
+    inshape = (80, 192, 192)
 
     # enabling cudnn determinism appears to speed up training by a lot
     torch.backends.cudnn.deterministic = not args.cudnn_nondet
@@ -568,7 +570,7 @@ def train(args, logger, device):
         
         # save model checkpoint
         if epoch % args.epochs == 0:
-        # if epoch % 10 == 0:
+        # if epoch % 1000 == 0:
             with torch.no_grad():
                 dsc_mean, dsc_std = register(model, epoch, inshape, logger, args)
     
@@ -602,7 +604,7 @@ if __name__ == "__main__":
     # training parameters
     parser.add_argument('--gpu', default='0', help='GPU ID number(s), comma-separated (default: 0)')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size (default: 1)')
-    parser.add_argument('--epochs', type=int, default=5000,
+    parser.add_argument('--epochs', type=int, default=1500,
                         help='number of training epochs (default: 1500)')
     parser.add_argument('--steps-per-epoch', type=int, default=100,
                         help='frequency of model saves (default: 100)')
